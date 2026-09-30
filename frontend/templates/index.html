@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Multi-Vendor E-Commerce DBMS</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .sidebar-active {
+            background-color: #f0f7ff;
+            color: #0369a1;
+            font-weight: 600;
+            border-right: 4px solid #0284c7;
+        }
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex">
+
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col fixed inset-y-0 z-30">
+        <!-- Brand Header -->
+        <div class="h-16 flex items-center px-6 border-b border-slate-100 gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-100">
+                <i class="fa-solid fa-store text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm text-slate-900 leading-tight">SmartStore CP</h1>
+                <p class="text-xs text-slate-500 font-medium">MySQL Order System</p>
+            </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="sidebar-active w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-chart-pie w-5 text-center"></i> Dashboard
+            </button>
+            <button onclick="switchTab('orders')" id="nav-orders" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-box-open w-5 text-center"></i> Orders & Checkout
+            </button>
+            <button onclick="switchTab('products')" id="nav-products" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-tags w-5 text-center"></i> Products & Catalog
+            </button>
+            <button onclick="switchTab('vendors')" id="nav-vendors" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-shop w-5 text-center"></i> Multi-Vendors
+            </button>
+            <button onclick="switchTab('customers')" id="nav-customers" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-users w-5 text-center"></i> Customers
+            </button>
+            <button onclick="switchTab('inventory')" id="nav-inventory" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-boxes-stacked w-5 text-center"></i> Inventory Monitor
+            </button>
+            <button onclick="switchTab('analytics')" id="nav-analytics" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-chart-line w-5 text-center"></i> Analytics & Cursors
+            </button>
+            <button onclick="switchTab('audit')" id="nav-audit" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-clock-rotate-left w-5 text-center"></i> Trigger Audit Logs
+            </button>
+        </nav>
+
+        <!-- Footer Info -->
+        <div class="p-4 border-t border-slate-100 bg-slate-50">
+            <div class="text-xs text-slate-500">
+                <!-- <span class="font-semibold text-slate-700">Devraj Bhagvat</span> (Roll 06) -->
+                <p>AI 2303 DBMS Lab Project</p>
+                <div class="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-600">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> MySQL 8.0 Connected
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 ml-64 p-8">
+        <!-- Top Bar -->
+        <header class="flex items-center justify-between pb-6 mb-6 border-b border-slate-200">
+            <div>
+                <h2 id="section-title" class="text-2xl font-bold text-slate-900">Dashboard Overview</h2>
+                <p id="section-desc" class="text-sm text-slate-500">Real-time e-commerce operational metrics and database status</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="openPlaceOrderModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium shadow-sm shadow-sky-200 flex items-center gap-2 transition">
+                    <i class="fa-solid fa-cart-plus"></i> New Order (Procedure)
+                </button>
+                <button onclick="refreshCurrentTab()" class="p-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-white transition" title="Refresh Data">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- ALERT NOTIFICATION BANNER -->
+        <div id="alert-banner" class="hidden mb-6 p-4 rounded-xl text-sm font-medium flex items-center justify-between">
+            <span id="alert-message"></span>
+            <button onclick="hideAlert()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- 1. DASHBOARD TAB -->
+        <section id="tab-dashboard" class="space-y-6">
+            <!-- Metric Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-indian-rupee-sign"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Gross Revenue</p>
+                        <h3 id="stat-revenue" class="text-2xl font-bold text-slate-900">₹0</h3>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-shopping-bag"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Orders</p>
+                        <h3 id="stat-orders" class="text-2xl font-bold text-slate-900">0</h3>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-store"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Vendors</p>
+                        <h3 id="stat-vendors" class="text-2xl font-bold text-slate-900">0</h3>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Low Stock Alerts</p>
+                        <h3 id="stat-low-stock" class="text-2xl font-bold text-slate-900">0</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart & Recent Orders Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Chart -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm lg:col-span-1">
+                    <h3 class="font-bold text-slate-900 mb-4 text-base flex items-center gap-2">
+                        <i class="fa-solid fa-chart-donut text-sky-600"></i> Category Sales
+                    </h3>
+                    <div class="h-64 relative flex items-center justify-center">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recent Orders Table -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm lg:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-clock text-sky-600"></i> Recent Platform Orders
+                        </h3>
+                        <button onclick="switchTab('orders')" class="text-xs text-sky-600 hover:underline font-semibold">View All Orders</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="text-xs uppercase bg-slate-50 text-slate-400 border-y border-slate-100">
+                                <tr>
+                                    <th class="py-3 px-3">Order</th>
+                                    <th class="py-3 px-3">Customer</th>
+                                    <th class="py-3 px-3">Amount</th>
+                                    <th class="py-3 px-3">Status</th>
+                                    <th class="py-3 px-3">Payment</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-recent-orders" class="divide-y divide-slate-100">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. ORDERS TAB -->
+        <section id="tab-orders" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm font-semibold text-slate-700">Filter Status:</span>
+                        <select id="order-status-filter" onchange="renderOrdersTable()" class="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg">
+                            <option value="ALL">All Statuses</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <button onclick="openPlaceOrderModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">
+                        + Place Order via Stored Procedure
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400 border-y border-slate-100">
+                            <tr>
+                                <th class="py-3 px-4">Order ID</th>
+                                <th class="py-3 px-4">Customer</th>
+                                <th class="py-3 px-4">Items Summary</th>
+                                <th class="py-3 px-4">Total Amount</th>
+                                <th class="py-3 px-4">Order Status</th>
+                                <th class="py-3 px-4">Payment</th>
+                                <th class="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. PRODUCTS TAB -->
+        <section id="tab-products" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <input type="text" id="product-search" placeholder="Search product or vendor..." onkeyup="filterProducts()" class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg w-64">
+                        <select id="product-category-filter" onchange="filterProducts()" class="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <button onclick="openAddProductModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">
+                        + Add Product
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400 border-y border-slate-100">
+                            <tr>
+                                <th class="py-3 px-4">ID</th>
+                                <th class="py-3 px-4">Product Name</th>
+                                <th class="py-3 px-4">Category</th>
+                                <th class="py-3 px-4">Vendor</th>
+                                <th class="py-3 px-4">Base Price</th>
+                                <th class="py-3 px-4">Discount</th>
+                                <th class="py-3 px-4">Stock</th>
+                                <th class="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-table-body" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. VENDORS TAB -->
+        <section id="tab-vendors" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-lg">Partnered Stores & Multi-Vendors</h3>
+                        <p class="text-xs text-slate-500">Each vendor maintains an independent catalog with platform commission rates</p>
+                    </div>
+                    <button onclick="openAddVendorModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">
+                        + Onboard Vendor
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400 border-y border-slate-100">
+                            <tr>
+                                <th class="py-3 px-4">Vendor ID</th>
+                                <th class="py-3 px-4">Vendor Name</th>
+                                <th class="py-3 px-4">City</th>
+                                <th class="py-3 px-4">Rating</th>
+                                <th class="py-3 px-4">Commission %</th>
+                                <th class="py-3 px-4">Products Listed</th>
+                                <th class="py-3 px-4">Gross Sales</th>
+                                <th class="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vendors-table-body" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. CUSTOMERS TAB -->
+        <section id="tab-customers" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <input type="text" id="customer-search" placeholder="Search by name, email, or city..." onkeyup="loadCustomers()" class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg w-72">
+                    <button onclick="openAddCustomerModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">
+                        + Register Customer
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400 border-y border-slate-100">
+                            <tr>
+                                <th class="py-3 px-4">ID</th>
+                                <th class="py-3 px-4">Full Name</th>
+                                <th class="py-3 px-4">Email</th>
+                                <th class="py-3 px-4">Phone</th>
+                                <th class="py-3 px-4">City</th>
+                                <th class="py-3 px-4">Total Orders</th>
+                                <th class="py-3 px-4">Lifetime Spent</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customers-table-body" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. INVENTORY TAB -->
+        <section id="tab-inventory" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-lg">Inventory & Stock Tracking</h3>
+                        <p class="text-xs text-slate-500">Integrated with database triggers preventing negative inventory</p>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400 border-y border-slate-100">
+                            <tr>
+                                <th class="py-3 px-4">Product ID</th>
+                                <th class="py-3 px-4">Product Name</th>
+                                <th class="py-3 px-4">Vendor</th>
+                                <th class="py-3 px-4">Category</th>
+                                <th class="py-3 px-4">Price</th>
+                                <th class="py-3 px-4">Stock Quantity</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-right">Quick Stock Update</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-table-body" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7. ANALYTICS & CURSORS TAB -->
+        <section id="tab-analytics" class="hidden space-y-6">
+            <!-- Cursors Execution Action Box -->
+            <div class="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 p-6 rounded-xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+                        <i class="fa-solid fa-gears text-sky-600"></i> MySQL Cursor Batch Execution
+                    </h3>
+                    <p class="text-xs text-slate-600 mt-1">
+                        Executes <code class="bg-white px-2 py-0.5 rounded text-sky-700 font-mono text-[11px]">calculate_vendor_payouts_cursor()</code>: iterates over each vendor row by row, aggregates delivered order sales, computes commission, and writes to <code class="bg-white px-2 py-0.5 rounded text-sky-700 font-mono text-[11px]">Vendor_Payout</code> table.
+                    </p>
+                </div>
+                <button onclick="runCursorBatchPayouts()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold shadow-sm shadow-sky-200 flex items-center gap-2 whitespace-nowrap">
+                    <i class="fa-solid fa-play"></i> Run Cursor Batch Job
+                </button>
+            </div>
+
+            <!-- Cursor Output Results -->
+            <div id="cursor-output-container" class="hidden bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h4 class="font-bold text-slate-900 text-sm mb-3 text-emerald-600 flex items-center gap-2">
+                    <i class="fa-solid fa-check-circle"></i> Cursor Execution Output: Vendor Payout Ledger
+                </h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400">
+                            <tr>
+                                <th class="py-2.5 px-3">Payout ID</th>
+                                <th class="py-2.5 px-3">Vendor</th>
+                                <th class="py-2.5 px-3">Total Sales</th>
+                                <th class="py-2.5 px-3">Platform Commission</th>
+                                <th class="py-2.5 px-3">Net Vendor Payout</th>
+                                <th class="py-2.5 px-3">Reconciliation Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cursor-payouts-table-body" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Analytics Tables -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Top Selling Products -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 class="font-bold text-slate-900 text-sm mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-fire text-amber-500"></i> Top-Selling Products (DQL & Grouping)
+                    </h3>
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400">
+                            <tr>
+                                <th class="py-2 px-3">Product</th>
+                                <th class="py-2 px-3">Vendor</th>
+                                <th class="py-2 px-3">Units Sold</th>
+                                <th class="py-2 px-3">Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-products-body" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+
+                <!-- Top Spending Customers -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 class="font-bold text-slate-900 text-sm mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-crown text-indigo-500"></i> High-Value Customers (HAVING / Aggregation)
+                    </h3>
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400">
+                            <tr>
+                                <th class="py-2 px-3">Customer</th>
+                                <th class="py-2 px-3">City</th>
+                                <th class="py-2 px-3">Orders</th>
+                                <th class="py-2 px-3">Total Spent</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-customers-body" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 8. TRIGGER AUDIT LOGS TAB -->
+        <section id="tab-audit" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div class="mb-6">
+                    <h3 class="font-bold text-slate-900 text-lg flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-sky-600"></i> Database Automation Audit Trail
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-1">
+                        These entries are generated automatically by the MySQL Trigger <code class="bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-mono text-[11px]">trg_orders_after_update_audit</code> whenever an order's status is changed.
+                    </p>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="text-xs uppercase bg-slate-50 text-slate-400 border-y border-slate-100">
+                            <tr>
+                                <th class="py-3 px-4">Log ID</th>
+                                <th class="py-3 px-4">Order ID</th>
+                                <th class="py-3 px-4">Previous Status</th>
+                                <th class="py-3 px-4">New Status</th>
+                                <th class="py-3 px-4">Trigger Action</th>
+                                <th class="py-3 px-4">Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-logs-table-body" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL: PLACE ORDER VIA STORED PROCEDURE -->
+    <div id="modal-place-order" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-900 text-lg">Checkout via Stored Procedure</h3>
+                <button onclick="closeModal('modal-place-order')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="submitPlaceOrder(event)" class="mt-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Select Customer</label>
+                    <select id="order-cust-select" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Select Product</label>
+                    <select id="order-prod-select" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Quantity</label>
+                        <input type="number" id="order-qty" value="1" min="1" max="100" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Payment Method</label>
+                        <select id="order-pay-method" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50">
+                            <option value="UPI">UPI</option>
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Debit Card">Debit Card</option>
+                            <option value="Net Banking">Net Banking</option>
+                            <option value="COD">COD</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- <div class="p-3 bg-sky-50 rounded-lg text-xs text-sky-800">
+                    <i class="fa-solid fa-circle-info"></i> This executes <code class="font-mono font-bold">CALL place_order_procedure()</code> with transaction isolation, inventory verification, and automated trigger stock reduction.
+                </div> -->
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeModal('modal-place-order')" class="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">Confirm Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD PRODUCT -->
+    <div id="modal-add-product" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-900 text-lg">Add New Product</h3>
+                <button onclick="closeModal('modal-add-product')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="submitAddProduct(event)" class="mt-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Product Title</label>
+                    <input type="text" id="new-prod-name" placeholder="e.g. Ultra HD Monitor" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Category</label>
+                        <select id="new-prod-category" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Vendor</label>
+                        <select id="new-prod-vendor" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50"></select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Price (₹)</label>
+                        <input type="number" id="new-prod-price" min="1" step="0.01" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Stock</label>
+                        <input type="number" id="new-prod-stock" min="0" value="20" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Discount %</label>
+                        <input type="number" id="new-prod-discount" min="0" max="100" value="0" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeModal('modal-add-product')" class="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD VENDOR -->
+    <div id="modal-add-vendor" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-900 text-lg">Onboard New Vendor</h3>
+                <button onclick="closeModal('modal-add-vendor')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="submitAddVendor(event)" class="mt-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Store / Vendor Name</label>
+                    <input type="text" id="new-vendor-name" placeholder="e.g. Apex Hardware" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email</label>
+                        <input type="email" id="new-vendor-email" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Phone</label>
+                        <input type="tel" id="new-vendor-phone" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">City</label>
+                        <input type="text" id="new-vendor-city" value="Pune" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Commission Rate (%)</label>
+                        <input type="number" id="new-vendor-comm" value="10" min="0" max="100" step="0.5" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeModal('modal-add-vendor')" class="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">Onboard</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD CUSTOMER -->
+    <div id="modal-add-customer" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-900 text-lg">Register Customer</h3>
+                <button onclick="closeModal('modal-add-customer')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="submitAddCustomer(event)" class="mt-4 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">First Name</label>
+                        <input type="text" id="new-cust-first" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Last Name</label>
+                        <input type="text" id="new-cust-last" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email</label>
+                    <input type="email" id="new-cust-email" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Phone</label>
+                        <input type="tel" id="new-cust-phone" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">City</label>
+                        <input type="text" id="new-cust-city" value="Pune" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeModal('modal-add-customer')" class="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">Register</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application JavaScript -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
