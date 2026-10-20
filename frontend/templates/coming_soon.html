@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ role|capitalize }} area - SmartStore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-lg p-10 max-w-md text-center">
+        <p class="text-xs uppercase tracking-wide text-slate-400">{{ role }} area</p>
+        <h1 class="text-2xl font-bold text-slate-900 mt-1">Hello, {{ name }}</h1>
+        <p class="text-sm text-slate-500 mt-3">
+            You are logged in as a <strong>{{ role }}</strong>. This dashboard is still being built
+            ({{ phase }}); login and role protection are already working.
+        </p>
+        <button id="logout" class="mt-6 px-5 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900">Log out</button>
+    </div>
+    <script>
+        document.getElementById('logout').addEventListener('click', async () => {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = {{ login_url | tojson }};
+        });
+    </script>
+</body>
+</html>

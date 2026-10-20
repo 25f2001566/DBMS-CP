@@ -6,9 +6,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from flask import Flask, jsonify, request, render_template, send_from_directory
+from flask import Flask, jsonify, request, render_template, redirect, send_from_directory
 from backend.config import Config
 from backend.db import execute_query, execute_dml, call_procedure, get_db_connection
+from backend.auth import auth_bp, role_required, current_user, LOGIN_URL, DASHBOARD_URL
 
 app = Flask(
     __name__,
@@ -16,18 +17,40 @@ app = Flask(
     static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'static')
 )
 app.config.from_object(Config)
+app.register_blueprint(auth_bp)
 
 # ------------------------------------------------------------------------------
 # FRONTEND ROUTES
 # ------------------------------------------------------------------------------
 @app.route('/')
 def index():
+    user = current_user()
+    return redirect(DASHBOARD_URL[user['role']] if user else '/login')
+
+@app.route('/admin')
+@role_required('admin')
+def admin_dashboard():
     return render_template('index.html')
+
+@app.route('/customer')
+@role_required('customer')
+def customer_home():
+    user = current_user()
+    return render_template('coming_soon.html', role='customer', name=user['name'],
+                           phase='storefront arrives in Phase 3', login_url=LOGIN_URL['customer'])
+
+@app.route('/vendor')
+@role_required('vendor')
+def vendor_home():
+    user = current_user()
+    return render_template('coming_soon.html', role='vendor', name=user['name'],
+                           phase='vendor dashboard arrives in Phase 4', login_url=LOGIN_URL['vendor'])
 
 # ------------------------------------------------------------------------------
 # 1. DASHBOARD & SUMMARY METRICS API
 # ------------------------------------------------------------------------------
 @app.route('/api/dashboard/stats', methods=['GET'])
+@role_required('admin')
 def get_dashboard_stats():
     try:
         # Aggregated KPI metrics
@@ -85,6 +108,7 @@ def get_dashboard_stats():
 # 2. CUSTOMERS API
 # ------------------------------------------------------------------------------
 @app.route('/api/customers', methods=['GET', 'POST'])
+@role_required('admin')
 def manage_customers():
     if request.method == 'GET':
         search = request.args.get('search', '').strip()
@@ -115,7 +139,7 @@ def manage_customers():
         first_name = data.get('first_name', '').strip()
         last_name = data.get('last_name', '').strip()
         email = data.get('email', '').strip()
-        phone = data.get('phone', '').strip()
+        phone = data.get('phone', '').strip() or None
         city = data.get('city', '').strip()
         status = data.get('status', 'Active')
 
@@ -132,6 +156,7 @@ def manage_customers():
             return jsonify({"status": "error", "message": str(e)}), 400
 
 @app.route('/api/customers/<int:cust_id>', methods=['PUT', 'DELETE'])
+@role_required('admin')
 def customer_detail(cust_id):
     if request.method == 'PUT':
         data = request.json or {}
@@ -156,6 +181,7 @@ def customer_detail(cust_id):
 # 3. VENDORS / SELLERS API
 # ------------------------------------------------------------------------------
 @app.route('/api/vendors', methods=['GET', 'POST'])
+@role_required('admin')
 def manage_vendors():
     if request.method == 'GET':
         vendors = execute_query("""
@@ -193,6 +219,7 @@ def manage_vendors():
             return jsonify({"status": "error", "message": str(e)}), 400
 
 @app.route('/api/vendors/<int:seller_id>/performance', methods=['GET'])
+@role_required('admin')
 def vendor_performance(seller_id):
     try:
         report = call_procedure('get_vendor_performance_report', [seller_id])
@@ -204,11 +231,13 @@ def vendor_performance(seller_id):
 # 4. PRODUCTS & CATEGORIES API
 # ------------------------------------------------------------------------------
 @app.route('/api/categories', methods=['GET'])
+@role_required('admin')
 def get_categories():
     cats = execute_query("SELECT * FROM Category ORDER BY category_name ASC")
     return jsonify({"status": "success", "data": cats})
 
 @app.route('/api/products', methods=['GET', 'POST'])
+@role_required('admin')
 def manage_products():
     if request.method == 'GET':
         category_id = request.args.get('category_id')
@@ -263,6 +292,7 @@ def manage_products():
             return jsonify({"status": "error", "message": str(e)}), 400
 
 @app.route('/api/products/<int:prod_id>', methods=['PUT', 'DELETE'])
+@role_required('admin')
 def product_detail(prod_id):
     if request.method == 'PUT':
         data = request.json or {}
@@ -287,6 +317,7 @@ def product_detail(prod_id):
 # 5. ORDERS & CHECKOUT API (Invoking Stored Procedures)
 # ------------------------------------------------------------------------------
 @app.route('/api/orders', methods=['GET', 'POST'])
+@role_required('admin')
 def manage_orders():
     if request.method == 'GET':
         orders = execute_query("""
@@ -342,6 +373,7 @@ def manage_orders():
             conn.close()
 
 @app.route('/api/orders/<int:order_id>/cancel', methods=['POST'])
+@role_required('admin')
 def cancel_order(order_id):
     # Invoke Stored Procedure: cancel_order_procedure
     conn = get_db_connection()
@@ -365,6 +397,7 @@ def cancel_order(order_id):
         conn.close()
 
 @app.route('/api/orders/<int:order_id>/status', methods=['PUT'])
+@role_required('admin')
 def update_order_status(order_id):
     # This also fires the AFTER UPDATE trigger trg_orders_after_update_audit!
     data = request.json or {}
@@ -382,6 +415,7 @@ def update_order_status(order_id):
 # 6. INVENTORY MANAGEMENT API
 # ------------------------------------------------------------------------------
 @app.route('/api/inventory', methods=['GET'])
+@role_required('admin')
 def get_inventory():
     items = execute_query("""
         SELECT 
@@ -404,6 +438,7 @@ def get_inventory():
     return jsonify({"status": "success", "data": items})
 
 @app.route('/api/inventory/update-stock', methods=['POST'])
+@role_required('admin')
 def update_stock():
     data = request.json or {}
     prod_id = int(data.get('product_id'))
@@ -420,6 +455,7 @@ def update_stock():
 # 7. ANALYTICS & CURSOR BATCH JOBS API
 # ------------------------------------------------------------------------------
 @app.route('/api/analytics', methods=['GET'])
+@role_required('admin')
 def get_analytics():
     # Top 5 products by revenue
     top_products = execute_query("""
@@ -469,6 +505,7 @@ def get_analytics():
     })
 
 @app.route('/api/admin/run-cursor-payouts', methods=['POST'])
+@role_required('admin')
 def run_cursor_payouts():
     """Triggers the calculate_vendor_payouts_cursor stored procedure!"""
     try:
@@ -482,6 +519,7 @@ def run_cursor_payouts():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/audit-logs', methods=['GET'])
+@role_required('admin')
 def get_audit_logs():
     """Retrieve audit logs generated automatically by AFTER UPDATE trigger on Orders table."""
     try:
@@ -494,6 +532,22 @@ def get_audit_logs():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ------------------------------------------------------------------------------
+# VENDOR APPROVAL (admin only). The full admin UI for this comes in Phase 5.
+# ------------------------------------------------------------------------------
+@app.route('/api/admin/vendors/<int:seller_id>/status', methods=['PUT'])
+@role_required('admin')
+def set_vendor_status(seller_id):
+    new_status = (request.json or {}).get('status')
+    if new_status not in ('Pending', 'Active', 'Inactive'):
+        return jsonify({"status": "error", "message": "Status must be Pending, Active or Inactive."}), 400
+    if not execute_query("SELECT seller_id FROM Seller WHERE seller_id = %s", (seller_id,), fetch_all=False):
+        return jsonify({"status": "error", "message": "Vendor not found."}), 404
+    execute_dml("UPDATE Seller SET status = %s WHERE seller_id = %s", (new_status, seller_id))
+    return jsonify({"status": "success", "message": f"Vendor #{seller_id} is now {new_status}."})
+
+
 if __name__ == '__main__':
     print("Starting Smart Multi-Vendor E-Commerce Backend on http://127.0.0.1:5000")
     app.run(host='127.0.0.1', port=5000, debug=True)
+

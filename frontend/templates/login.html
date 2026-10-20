@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set cfg = {
+        'customer': {'title': 'Customer', 'icon': 'fa-bag-shopping', 'grad': 'from-sky-600 to-indigo-600', 'btn': 'bg-sky-600 hover:bg-sky-700', 'ring': 'focus:ring-sky-500 focus:border-sky-500', 'link': 'text-sky-600',
+                     'tagline': 'Shop products from many independent stores in one cart.',
+                     'login': '/login', 'register': '/register'},
+        'vendor':   {'title': 'Vendor', 'icon': 'fa-store', 'grad': 'from-emerald-600 to-teal-600', 'btn': 'bg-emerald-600 hover:bg-emerald-700', 'ring': 'focus:ring-emerald-500 focus:border-emerald-500', 'link': 'text-emerald-600',
+                     'tagline': 'List your products, manage stock and fulfil your orders.',
+                     'login': '/vendor/login', 'register': '/vendor/register'},
+        'admin':    {'title': 'Administrator', 'icon': 'fa-user-shield', 'grad': 'from-slate-800 to-slate-600', 'btn': 'bg-slate-800 hover:bg-slate-900', 'ring': 'focus:ring-slate-500 focus:border-slate-500', 'link': 'text-slate-700',
+                     'tagline': 'Monitor the whole platform: vendors, customers, orders and reports.',
+                     'login': '/admin/login', 'register': None}
+    }[portal] %}
+    <title>{{ cfg.title }} {{ 'Sign up' if mode == 'register' else 'Login' }} - SmartStore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+<div class="w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden grid md:grid-cols-2">
+
+    <!-- Brand panel -->
+    <div class="bg-gradient-to-br {{ cfg.grad }} text-white p-10 flex flex-col justify-between">
+        <div>
+            <div class="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl mb-6">
+                <i class="fa-solid {{ cfg.icon }}"></i>
+            </div>
+            <h1 class="text-3xl font-bold leading-tight">SmartStore<br>{{ cfg.title }} Portal</h1>
+            <p class="mt-4 text-white/80 text-sm leading-relaxed">{{ cfg.tagline }}</p>
+        </div>
+        <p class="text-xs text-white/60 mt-10">Multi-Vendor Order Management System &middot; AI 2303 DBMS</p>
+    </div>
+
+    <!-- Form panel -->
+    <div class="p-8 md:p-10">
+        <h2 id="form-title" class="text-2xl font-bold text-slate-900"></h2>
+        <p id="form-sub" class="text-sm text-slate-500 mt-1 mb-6"></p>
+
+        <div id="msg" class="hidden mb-4 text-sm rounded-lg px-3 py-2" role="alert"></div>
+
+        <form id="auth-form" class="space-y-4" novalidate>
+            <!-- Register-only fields -->
+            <div id="fields-register" class="space-y-4 hidden">
+                {% if portal == 'customer' %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">First name</label>
+                        <input id="first_name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 {{ cfg.ring }}"></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Last name</label>
+                        <input id="last_name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 {{ cfg.ring }}"></div>
+                </div>
+                {% elif portal == 'vendor' %}
+                <div><label class="block text-xs font-medium text-slate-600 mb-1">Store name</label>
+                    <input id="store_name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 {{ cfg.ring }}"></div>
+                {% endif %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">City</label>
+                        <input id="city" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 {{ cfg.ring }}"></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Phone (optional)</label>
+                        <input id="phone" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 {{ cfg.ring }}"></div>
+                </div>
+            </div>
+
+            <div><label class="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                <input id="email" type="email" autocomplete="username" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 {{ cfg.ring }}"></div>
+            <div><label class="block text-xs font-medium text-slate-600 mb-1">Password</label>
+                <input id="password" type="password" autocomplete="current-password" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 {{ cfg.ring }}">
+                <p id="pw-hint" class="hidden text-xs text-slate-400 mt-1">At least 8 characters.</p></div>
+
+            <button id="submit-btn" type="submit" class="w-full py-2.5 {{ cfg.btn }} text-white rounded-lg text-sm font-semibold transition disabled:opacity-60"></button>
+        </form>
+
+        <div class="mt-6 text-sm text-slate-500 space-y-2">
+            {% if cfg.register %}
+            <p id="switch-line"></p>
+            {% endif %}
+            <p class="text-xs text-slate-400 pt-3 border-t border-slate-100">
+                Switch portal:
+                {% if portal != 'customer' %}<a class="underline" href="/login">Customer</a>{% endif %}
+                {% if portal != 'vendor' %}<a class="underline" href="/vendor/login">Vendor</a>{% endif %}
+                {% if portal != 'admin' %}<a class="underline" href="/admin/login">Admin</a>{% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const PORTAL = {{ portal | tojson }};
+    const CFG = {{ {'login': cfg.login, 'register': cfg.register, 'title': cfg.title, 'linkClass': cfg.link} | tojson }};
+    let mode = {{ mode | tojson }};
+
+    const $ = (id) => document.getElementById(id);
+    const form = $('auth-form'), msg = $('msg'), btn = $('submit-btn');
+
+    function show(text, ok) {
+        msg.textContent = text;                       // textContent: never inject server text as HTML
+        msg.className = 'mb-4 text-sm rounded-lg px-3 py-2 ' +
+            (ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-red-50 text-red-700 border border-red-200');
+    }
+
+    function render() {
+        const reg = mode === 'register';
+        $('form-title').textContent = reg ? 'Create your ' + CFG.title.toLowerCase() + ' account' : 'Welcome back';
+        $('form-sub').textContent = reg
+            ? (PORTAL === 'vendor' ? 'New stores are reviewed by an administrator before they go live.' : 'It takes less than a minute.')
+            : 'Log in to your ' + CFG.title.toLowerCase() + ' account.';
+        btn.textContent = reg ? 'Create account' : 'Log in';
+        $('fields-register').classList.toggle('hidden', !reg);
+        $('pw-hint').classList.toggle('hidden', !reg);
+        $('password').autocomplete = reg ? 'new-password' : 'current-password';
+        const line = $('switch-line');
+        if (line && CFG.register) {
+            line.textContent = '';
+            const a = document.createElement('a');
+            a.className = 'font-semibold underline ' + CFG.linkClass;
+            a.href = reg ? CFG.login : CFG.register;
+            a.textContent = reg ? 'Log in' : 'Create one';
+            line.append(reg ? 'Already have an account? ' : 'New here? ', a);
+        }
+        msg.className = 'hidden';
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = $('email').value.trim(), password = $('password').value;
+        if (!email || !password) { show('Please enter your email and password.', false); return; }
+
+        let url, body;
+        if (mode === 'register') {
+            url = '/api/auth/register/' + PORTAL;
+            body = { email, password, city: $('city').value, phone: $('phone').value };
+            if (PORTAL === 'customer') { body.first_name = $('first_name').value; body.last_name = $('last_name').value; }
+            else { body.store_name = $('store_name').value; }
+        } else {
+            url = '/api/auth/login';
+            body = { email, password, portal: PORTAL };
+        }
+
+        btn.disabled = true;
+        try {
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const data = await res.json();
+            if (!res.ok) { show(data.message || 'Something went wrong.', false); return; }
+            if (mode === 'register') {
+                if (PORTAL === 'vendor') {
+                    show('Account created. An administrator must approve your store before you can log in.', true);
+                    form.reset();
+                } else {
+                    show('Account created! Redirecting to login...', true);
+                    setTimeout(() => { window.location.href = CFG.login; }, 1200);
+                }
+            } else {
+                window.location.href = data.redirect;
+            }
+        } catch (err) {
+            show('Cannot reach the server. Is the app running?', false);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    render();
+})();
+</script>
+</body>
+</html>

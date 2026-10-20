@@ -157,36 +157,31 @@ smart-multivendor-ecommerce/
 ## 6. How to Run the Project
 
 ### Prerequisites
-1. **MySQL Server 8.0+** installed and running on port 3306.
-2. **Python 3.10+** (Flask & mysql-connector-python installed).
+1. **MySQL Server 8.0+** running on port 3306.
+2. **Python 3.10+** and: `pip install flask mysql-connector-python`
 
-### Step 1: Database Setup
-You can load the database either via **MySQL Workbench** or through the command line:
+### Step 1: Configure secrets (never commit these)
+Copy `.env.example` to `.env` and fill in your MySQL password and a random `SECRET_KEY`.
 
-#### Option A: Using MySQL Workbench
-1. Open MySQL Workbench and connect to your local MySQL instance.
-2. Open `database/01_schema_ddl.sql` and execute the entire script.
-3. Open `database/02_sample_dml.sql` and execute.
-4. Execute `06_cursors.sql`, `07_procedures.sql`, `08_functions.sql`, `09_triggers.sql`, and `10_views_and_indexing.sql`.
-
-#### Option B: Automated Execution via Python
-Run:
+### Step 2: Build the database and demo logins
 ```bash
-python -m backend.init_db
+python -m backend.init_db       # WARNING: drops and recreates ecommerce_db
+python -m backend.seed_users    # creates demo logins for the sample data
 ```
-*(Tip: Set your password in `backend/config.py` or export `MYSQL_PASSWORD=your_password`)*
 
----
-
-### Step 2: Start the Web Application
-From the project root directory:
+### Step 3: Start the app
 ```bash
 python backend/app.py
 ```
-Open your browser and navigate to:
-```text
-http://127.0.0.1:5000
-```
+Open http://127.0.0.1:5000 - it redirects to the right login page.
+
+| Portal | URL | Demo login (demo passwords only) |
+| :--- | :--- | :--- |
+| Customer | `/login` | any customer email in the sample data / `Customer@123` |
+| Vendor | `/vendor/login` | any seller email in the sample data / `Vendor@123` |
+| Admin | `/admin/login` | `admin@smartstore.com` / `Admin@123` |
+
+New customers can sign up at `/register`. New vendors sign up at `/vendor/register` and stay **Pending** until an admin approves them.
 
 ---
 

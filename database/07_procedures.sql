@@ -59,7 +59,9 @@ proc_body: BEGIN
     END IF;
 
     -- Check Product & Stock
-    SELECT stock_quantity, price INTO v_available_stock, v_unit_price
+    -- Price actually charged = list price after the product's discount (uses fn from 08_functions.sql)
+    SELECT stock_quantity, calculate_discounted_price(price, discount_percent)
+    INTO v_available_stock, v_unit_price
     FROM Product
     WHERE product_id = p_product_id;
 
@@ -93,11 +95,8 @@ proc_body: BEGIN
         INSERT INTO Order_Item (order_id, product_id, quantity, unit_price)
         VALUES (p_order_id, p_product_id, p_quantity, v_unit_price);
 
-        -- 3. Stock decrement is handled automatically by AFTER INSERT trigger on Order_Item!
-        -- Or directly updated here if triggers are not yet loaded:
-        UPDATE Product 
-        SET stock_quantity = stock_quantity - p_quantity
-        WHERE product_id = p_product_id;
+        -- 3. Stock decrement is done ONLY by trg_order_item_after_insert (single source of truth).
+        --    (An earlier version also decremented here, so stock dropped twice - fixed.)
 
         -- 4. Insert Payment record
         INSERT INTO Payment (order_id, payment_date, payment_method, payment_status)
