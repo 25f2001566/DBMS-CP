@@ -222,3 +222,158 @@ proc_cart: BEGIN
 END //
 
 DELIMITER ;
+
+USE ecommerce_db;
+
+DROP PROCEDURE IF EXISTS place_order_from_cart;
+
+DELIMITER //
+
+CREATE PROCEDURE place_order_from_cart(
+    IN p_customer_id INT,
+    IN p_address_id INT,
+    IN p_payment_method VARCHAR(50),
+    OUT p_order_id INT,
+    OUT p_status_message VARCHAR(255)
+)
+proc_block: BEGIN
+    DECLARE v_cart_id INT DEFAULT NULL;
+    DECLARE v_cart_item_count INT DEFAULT 0;
+    DECLARE v_total_amount DECIMAL(10, 2) DEFAULT 0.00;
+    DECLARE v_new_order_id INT DEFAULT NULL;
+    DECLARE v_done INT DEFAULT FALSE;
+    
+    -- Variables for looping through cart items
+    DECLARE v_product_id INT;
+    DECLARE v_seller_id INT;
+    DECLARE v_qty INT;
+    DECLARE v_price DECIMAL(10, 2);
+    DECLARE v_discount DECIMAL(5, 2);
+    DECLARE v_effective_price DECIMAL(10, 2);
+    DECLARE v_stock INT;
+    DECLARE v_prod_name VARCHAR(150);
+
+    -- Cursor to iterate through items in the customer's cart
+    DECLARE cur_items CURSOR FOR
+        SELECT ci.product_id, ci.quantity, p.price, p.discount_percentage, p.stock_quantity, p.seller_id, p.name
+        FROM Cart_Item ci
+        JOIN Product p ON ci.product_id = p.product_id
+        WHERE ci.cart_id = v_cart_id;
+
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = TRUE;
+
+    -- Error handler to rollback on SQL exceptions
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        SET p_order_id = 0;
+        SET p_status_message = 'Transaction failed. Order rolled back.';
+    END;
+
+    -- 1. Validate customer cart
+    SELECT cart_id INTO v_cart_id
+    FROM Shopping_Cart
+    WHERE customer_id = p_customer_id
+    LIMIT 1;
+
+    IF v_cart_id IS NULL THEN
+        SET p_order_id = 0;
+        SET p_status_message = 'Cart not found for this customer.';
+        LEAVE proc_block;
+    END IF;
+
+    SELECT COUNT(*) INTO v_cart_item_count
+    FROM Cart_Item
+    WHERE cart_id = v_cart_id;
+
+    IF v_cart_item_count = 0 THEN
+        SET p_order_id = 0;
+        SET p_status_message = 'Cart is empty.';
+        LEAVE proc_block;
+    END IF;
+
+    -- 2. Validate default address if none provided
+    IF p_address_id IS NULL OR p_address_id = 0 THEN
+        SELECT address_id INTO p_address_id
+        FROM Address
+        WHERE customer_id = p_customer_id
+        LIMIT 1;
+
+        IF p_address_id IS NULL THEN
+            SET p_order_id = 0;
+            SET p_status_message = 'No shipping address found for customer.';
+            LEAVE proc_block;
+        END IF;
+    END IF;
+
+    -- 3. START ATOMIC TRANSACTION
+    START TRANSACTION;
+
+    -- 4. Check stock for every item before creating the order
+    OPEN cur_items;
+    stock_check_loop: LOOP
+        FETCH cur_items INTO v_product_id, v_qty, v_price, v_discount, v_stock, v_seller_id, v_prod_name;
+        IF v_done THEN
+            LEAVE stock_check_loop;
+        END IF;
+
+        IF v_stock < v_qty THEN
+            CLOSE cur_items;
+            ROLLBACK;
+            SET p_order_id = 0;
+            SET p_status_message = CONCAT('Insufficient stock for product: ', v_prod_name);
+            LEAVE proc_block;
+        END IF;
+
+        -- Calculate final line total using the syllabus discount function
+        SET v_effective_price = calculate_discounted_price(v_price, v_discount);
+        SET v_total_amount = v_total_amount + (v_effective_price * v_qty);
+    END LOOP stock_check_loop;
+    CLOSE cur_items;
+
+    -- Reset cursor flag
+    SET v_done = FALSE;
+
+    -- 5. Create Parent Order record
+    INSERT INTO Orders (customer_id, address_id, total_amount, order_status, order_date)
+    VALUES (p_customer_id, p_address_id, v_total_amount, 'Pending', NOW());
+
+    SET v_new_order_id = LAST_INSERT_ID();
+
+    -- 6. Insert Order_Items and deduct stock
+    OPEN cur_items;
+    insert_items_loop: LOOP
+        FETCH cur_items INTO v_product_id, v_qty, v_price, v_discount, v_stock, v_seller_id, v_prod_name;
+        IF v_done THEN
+            LEAVE insert_items_loop;
+        END IF;
+
+        SET v_effective_price = calculate_discounted_price(v_price, v_discount);
+
+        -- Insert line item with individual item_status and vendor association
+        INSERT INTO Order_Item (order_id, product_id, seller_id, quantity, unit_price, item_status)
+        VALUES (v_new_order_id, v_product_id, v_seller_id, v_qty, v_effective_price, 'Pending');
+
+        -- Decrement product inventory
+        UPDATE Product
+        SET stock_quantity = stock_quantity - v_qty
+        WHERE product_id = v_product_id;
+    END LOOP insert_items_loop;
+    CLOSE cur_items;
+
+    -- 7. Record Simulated Payment
+    INSERT INTO Payment (order_id, payment_method, payment_status, transaction_reference)
+    VALUES (v_new_order_id, p_payment_method, 'Success', CONCAT('TXN-', UNIX_TIMESTAMP(), '-', v_new_order_id));
+
+    -- 8. Clear customer shopping cart
+    DELETE FROM Cart_Item WHERE cart_id = v_cart_id;
+
+    COMMIT;
+
+    SET p_order_id = v_new_order_id;
+    SET p_status_message = 'Order placed successfully!';
+END //
+
+DELIMITER ;
+
+SHOW PROCEDURE STATUS WHERE Db='ecommerce_db';

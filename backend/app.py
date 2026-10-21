@@ -36,15 +36,13 @@ def admin_dashboard():
 @role_required('customer')
 def customer_home():
     user = current_user()
-    return render_template('coming_soon.html', role='customer', name=user['name'],
-                           phase='storefront arrives in Phase 3', login_url=LOGIN_URL['customer'])
+    return render_template('customer_storefront.html', user=user)
 
 @app.route('/vendor')
 @role_required('vendor')
 def vendor_home():
     user = current_user()
-    return render_template('coming_soon.html', role='vendor', name=user['name'],
-                           phase='vendor dashboard arrives in Phase 4', login_url=LOGIN_URL['vendor'])
+    return render_template('vendor_dashboard.html', user=user)
 
 # ------------------------------------------------------------------------------
 # 1. DASHBOARD & SUMMARY METRICS API
@@ -171,11 +169,88 @@ def customer_detail(cust_id):
             return jsonify({"status": "error", "message": str(e)}), 400
 
     elif request.method == 'DELETE':
+        conn = None
+        cursor = None
+
         try:
-            execute_dml("DELETE FROM Customer WHERE customer_id = %s", (cust_id,))
-            return jsonify({"status": "success", "message": "Customer removed successfully."})
+            conn = get_db_connection()
+            conn.start_transaction()
+            cursor = conn.cursor()
+
+            # Confirm that the customer exists.
+            cursor.execute(
+                "SELECT customer_id FROM Customer WHERE customer_id = %s",
+                (cust_id,)
+            )
+            if cursor.fetchone() is None:
+                conn.rollback()
+                return jsonify({
+                    "status": "error",
+                    "message": "Customer not found."
+                }), 404
+
+            # Preserve customers who have order history.
+            cursor.execute(
+                "SELECT COUNT(*) FROM Orders WHERE customer_id = %s",
+                (cust_id,)
+            )
+            order_count = cursor.fetchone()[0]
+
+            if order_count > 0:
+                cursor.execute(
+                    "UPDATE Customer SET status = 'Inactive' "
+                    "WHERE customer_id = %s",
+                    (cust_id,)
+                )
+                cursor.execute(
+                    "UPDATE App_User SET is_active = FALSE "
+                    "WHERE customer_id = %s",
+                    (cust_id,)
+                )
+                conn.commit()
+
+                return jsonify({
+                    "status": "success",
+                    "message": (
+                        "Customer has order history. "
+                        "The account was deactivated and "
+                        "the order records were preserved."
+                    )
+                })
+
+            # No orders exist: remove the linked login first.
+            cursor.execute(
+                "DELETE FROM App_User WHERE customer_id = %s",
+                (cust_id,)
+            )
+
+            # Now the customer profile can be deleted.
+            cursor.execute(
+                "DELETE FROM Customer WHERE customer_id = %s",
+                (cust_id,)
+            )
+
+            conn.commit()
+
+            return jsonify({
+                "status": "success",
+                "message": "Customer and linked login deleted successfully."
+            })
+
         except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 400
+            if conn:
+                conn.rollback()
+
+            return jsonify({
+                "status": "error",
+                "message": str(e)
+            }), 400
+
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
 # ------------------------------------------------------------------------------
 # 3. VENDORS / SELLERS API
@@ -545,6 +620,331 @@ def set_vendor_status(seller_id):
         return jsonify({"status": "error", "message": "Vendor not found."}), 404
     execute_dml("UPDATE Seller SET status = %s WHERE seller_id = %s", (new_status, seller_id))
     return jsonify({"status": "success", "message": f"Vendor #{seller_id} is now {new_status}."})
+
+
+
+# ------------------------------------------------------------------------------
+# CUSTOMER STOREFRONT API
+# All queries are scoped to the authenticated customer's customer_id.
+# ------------------------------------------------------------------------------
+@app.route('/api/store/products', methods=['GET'])
+@role_required('customer')
+def store_products():
+    user = current_user()
+    search = request.args.get('search', '').strip()
+    category_id = request.args.get('category_id', '').strip()
+    conditions = ["p.is_active = TRUE", "s.status = 'Active'", "p.stock_quantity >= 0"]
+    params = []
+    if search:
+        conditions.append("(p.product_name LIKE %s OR s.seller_name LIKE %s OR c.category_name LIKE %s)")
+        params.extend([f"%{search}%"] * 3)
+    if category_id.isdigit():
+        conditions.append("p.category_id = %s")
+        params.append(int(category_id))
+    try:
+        rows = execute_query(f"""
+            SELECT p.product_id, p.product_name, p.price, p.discount_percent,
+                   ROUND(p.price * (1 - p.discount_percent / 100), 2) AS discounted_price,
+                   p.stock_quantity, p.product_rating, s.seller_name, s.seller_id,
+                   c.category_name, c.category_id
+            FROM Product p
+            JOIN Seller s ON s.seller_id = p.seller_id
+            JOIN Category c ON c.category_id = p.category_id
+            WHERE {' AND '.join(conditions)}
+            ORDER BY p.product_id DESC
+        """, tuple(params))
+        categories = execute_query("SELECT category_id, category_name FROM Category ORDER BY category_name")
+        return jsonify({"status": "success", "data": rows, "categories": categories})
+    except Exception as e:
+        return jsonify({"status": "error", "message": "Could not load products. Check the database schema."}), 500
+
+@app.route('/api/store/cart', methods=['GET'])
+@role_required('customer')
+def store_get_cart():
+    user = current_user()
+    try:
+        cart = execute_query("SELECT cart_id FROM Cart WHERE customer_id = %s", (user['customer_id'],), fetch_all=False)
+        if not cart:
+            return jsonify({"status": "success", "data": [], "total": 0})
+        rows = execute_query("""
+            SELECT ci.cart_item_id, ci.product_id, ci.quantity, p.product_name, p.price,
+                   p.discount_percent, ROUND(p.price * (1 - p.discount_percent/100), 2) AS unit_price,
+                   p.stock_quantity, s.seller_name
+            FROM Cart_Item ci JOIN Product p ON p.product_id = ci.product_id
+            JOIN Seller s ON s.seller_id = p.seller_id
+            WHERE ci.cart_id = %s AND p.is_active = TRUE
+            ORDER BY ci.cart_item_id DESC
+        """, (cart['cart_id'],))
+        total = round(sum(float(r['unit_price']) * int(r['quantity']) for r in rows), 2)
+        return jsonify({"status": "success", "data": rows, "total": total})
+    except Exception:
+        return jsonify({"status": "error", "message": "Could not load cart."}), 500
+
+@app.route('/api/store/cart', methods=['POST'])
+@role_required('customer')
+def store_add_cart():
+    user = current_user()
+    data = request.get_json(silent=True) or {}
+    try:
+        product_id, quantity = int(data.get('product_id', 0)), int(data.get('quantity', 1))
+        if product_id <= 0 or quantity < 1 or quantity > 99:
+            return jsonify({"status":"error","message":"Choose a valid product and quantity."}), 400
+        product = execute_query("""
+            SELECT p.product_id, p.stock_quantity FROM Product p
+            JOIN Seller s ON s.seller_id=p.seller_id
+            WHERE p.product_id=%s AND p.is_active=TRUE AND s.status='Active'
+        """, (product_id,), fetch_all=False)
+        if not product:
+            return jsonify({"status":"error","message":"This product is unavailable."}), 404
+        if quantity > product['stock_quantity']:
+            return jsonify({"status":"error","message":"Quantity exceeds available stock."}), 400
+        cart = execute_query("SELECT cart_id FROM Cart WHERE customer_id=%s", (user['customer_id'],), fetch_all=False)
+        if not cart:
+            created = execute_dml("INSERT INTO Cart (customer_id, created_date) VALUES (%s, CURDATE())", (user['customer_id'],))
+            cart_id = created['last_id']
+        else:
+            cart_id = cart['cart_id']
+        existing = execute_query("SELECT cart_item_id, quantity FROM Cart_Item WHERE cart_id=%s AND product_id=%s LIMIT 1", (cart_id, product_id), fetch_all=False)
+        new_quantity = quantity + (int(existing['quantity']) if existing else 0)
+        if new_quantity > product['stock_quantity']:
+            return jsonify({"status":"error","message":"Your cart quantity would exceed available stock."}), 400
+        if existing:
+            execute_dml("UPDATE Cart_Item SET quantity=%s WHERE cart_item_id=%s", (new_quantity, existing['cart_item_id']))
+        else:
+            execute_dml("INSERT INTO Cart_Item (cart_id, product_id, quantity) VALUES (%s,%s,%s)", (cart_id, product_id, quantity))
+        return jsonify({"status":"success","message":"Added to cart."})
+    except (TypeError, ValueError):
+        return jsonify({"status":"error","message":"Invalid product or quantity."}), 400
+    except Exception:
+        return jsonify({"status":"error","message":"Could not update cart."}), 500
+
+@app.route('/api/store/cart/<int:item_id>', methods=['PUT', 'DELETE'])
+@role_required('customer')
+def store_cart_item(item_id):
+    user = current_user()
+    item = execute_query("""
+        SELECT ci.cart_item_id, ci.quantity, ci.product_id, c.cart_id, p.stock_quantity
+        FROM Cart_Item ci JOIN Cart c ON c.cart_id=ci.cart_id
+        JOIN Product p ON p.product_id=ci.product_id
+        WHERE ci.cart_item_id=%s AND c.customer_id=%s
+    """, (item_id, user['customer_id']), fetch_all=False)
+    if not item:
+        return jsonify({"status":"error","message":"Cart item not found."}), 404
+    if request.method == 'DELETE':
+        execute_dml("DELETE FROM Cart_Item WHERE cart_item_id=%s", (item_id,))
+        return jsonify({"status":"success","message":"Item removed."})
+    data = request.get_json(silent=True) or {}
+    try:
+        qty = int(data.get('quantity', 0))
+        if qty < 1 or qty > int(item['stock_quantity']):
+            return jsonify({"status":"error","message":"Quantity must be between 1 and available stock."}), 400
+        execute_dml("UPDATE Cart_Item SET quantity=%s WHERE cart_item_id=%s", (qty,item_id))
+        return jsonify({"status":"success","message":"Quantity updated."})
+    except (TypeError, ValueError):
+        return jsonify({"status":"error","message":"Invalid quantity."}), 400
+
+@app.route('/api/store/addresses', methods=['GET', 'POST'])
+@role_required('customer')
+def store_addresses():
+    user = current_user()
+    if request.method == 'GET':
+        rows = execute_query("SELECT address_id,address_line,city,state,pincode,is_default FROM Customer_Address WHERE customer_id=%s ORDER BY is_default DESC,address_id DESC", (user['customer_id'],))
+        return jsonify({"status":"success","data":rows})
+    data = request.get_json(silent=True) or {}
+    fields = [str(data.get(k,'')).strip() for k in ('address_line','city','state','pincode')]
+    if not all(fields):
+        return jsonify({"status":"error","message":"Address, city, state and PIN code are required."}), 400
+    try:
+        count = execute_query("SELECT COUNT(*) AS n FROM Customer_Address WHERE customer_id=%s", (user['customer_id'],), fetch_all=False)['n']
+        res = execute_dml("""INSERT INTO Customer_Address (customer_id,address_line,city,state,pincode,is_default)
+                            VALUES (%s,%s,%s,%s,%s,%s)""",
+                          (user['customer_id'], *fields, 1 if count == 0 else 0))
+        return jsonify({"status":"success","address_id":res['last_id'],"message":"Address saved."})
+    except Exception:
+        return jsonify({"status":"error","message":"Could not save address."}), 400
+
+@app.route('/api/store/checkout', methods=['POST'])
+@role_required('customer')
+def store_checkout():
+    user = current_user()
+    data = request.get_json(silent=True) or {}
+    try:
+        address_id = int(data.get('address_id', 0))
+        raw_method = str(data.get('payment_method', 'COD')).strip().lower()
+        method_map = {'upi':'UPI', 'credit card':'Credit Card', 'debit card':'Debit Card',
+                      'net banking':'Net Banking', 'cod':'COD'}
+        method = method_map.get(raw_method)
+        if not method:
+            return jsonify({"status":"error","message":"Choose a valid payment method."}), 400
+        owns = execute_query("SELECT address_id FROM Customer_Address WHERE address_id=%s AND customer_id=%s",
+                             (address_id,user['customer_id']),fetch_all=False)
+        if not owns:
+            return jsonify({"status":"error","message":"Choose one of your saved delivery addresses."}), 400
+        cart = execute_query("""SELECT c.cart_id FROM Cart c JOIN Cart_Item ci ON ci.cart_id=c.cart_id
+                                WHERE c.customer_id=%s LIMIT 1""",(user['customer_id'],),fetch_all=False)
+        if not cart:
+            return jsonify({"status":"error","message":"Your cart is empty."}), 400
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            
+            args = [user['customer_id'], address_id, method, 0, '']
+            out = cur.callproc('place_order_from_cart', args)
+            
+            order_id, message = out[3], out[4]
+
+            # The procedure communicates its result through the message.
+            if not order_id:
+                conn.rollback()
+                return jsonify({
+                    "status": "error",
+                    "message": message or "Checkout failed."
+                }), 400
+
+            conn.commit()
+
+            return jsonify({
+                "status": "success",
+                "order_id": order_id,
+                "message": message or "Order placed successfully."
+            })
+
+        finally:
+            cur.close()
+            conn.close()
+    except Exception:
+        app.logger.exception("Checkout failed")
+        return jsonify({
+            "status": "error",
+            "message": "Checkout failed. Check the server terminal."
+        }), 500
+
+@app.route('/api/store/orders', methods=['GET'])
+@role_required('customer')
+def store_orders():
+    user = current_user()
+    rows = execute_query("""
+        SELECT o.order_id,o.order_date,o.total_amount,o.order_status,p.payment_method,p.payment_status,
+               COUNT(oi.order_item_id) AS item_count,
+               GROUP_CONCAT(CONCAT(pr.product_name,' × ',oi.quantity) SEPARATOR ', ') AS items
+        FROM Orders o LEFT JOIN Payment p ON p.order_id=o.order_id
+        LEFT JOIN Order_Item oi ON oi.order_id=o.order_id
+        LEFT JOIN Product pr ON pr.product_id=oi.product_id
+        WHERE o.customer_id=%s
+        GROUP BY o.order_id,p.payment_method,p.payment_status
+        ORDER BY o.order_id DESC
+    """,(user['customer_id'],))
+    return jsonify({"status":"success","data":rows})
+
+# ------------------------------------------------------------------------------
+# VENDOR DASHBOARD API. Every query is scoped to the logged-in seller_id.
+# ------------------------------------------------------------------------------
+@app.route('/api/vendor/summary', methods=['GET'])
+@role_required('vendor')
+def vendor_summary():
+    sid=current_user()['seller_id']
+    stats=execute_query("""
+        SELECT COUNT(DISTINCT p.product_id) AS products,
+               COALESCE(SUM(DISTINCT CASE WHEN p.stock_quantity<=10 THEN p.product_id END),0) AS low_stock_marker,
+               COUNT(DISTINCT CASE WHEN oi.item_status='Pending' THEN oi.order_item_id END) AS pending_items,
+               COALESCE(SUM(CASE WHEN oi.item_status<>'Cancelled' THEN oi.quantity*oi.unit_price ELSE 0 END),0) AS gross_sales
+        FROM Product p LEFT JOIN Order_Item oi ON oi.product_id=p.product_id
+        WHERE p.seller_id=%s
+    """,(sid,),fetch_all=False)
+    stats['low_stock'] = execute_query("SELECT COUNT(*) AS n FROM Product WHERE seller_id=%s AND stock_quantity<=10",(sid,),fetch_all=False)['n']
+    return jsonify({"status":"success","data":stats})
+
+@app.route('/api/vendor/categories', methods=['GET'])
+@role_required('vendor')
+def vendor_categories():
+    return jsonify({"status":"success","data":execute_query("SELECT category_id,category_name FROM Category ORDER BY category_name")})
+
+@app.route('/api/vendor/products', methods=['GET','POST'])
+@role_required('vendor')
+def vendor_products():
+    sid=current_user()['seller_id']
+    if request.method=='GET':
+        rows=execute_query("""SELECT p.product_id,p.product_name,p.category_id,c.category_name,p.price,p.discount_percent,
+                                    ROUND(p.price*(1-p.discount_percent/100),2) AS discounted_price,
+                                    p.stock_quantity,p.product_rating,p.is_active
+                             FROM Product p JOIN Category c ON c.category_id=p.category_id
+                             WHERE p.seller_id=%s ORDER BY p.product_id DESC""",(sid,))
+        return jsonify({"status":"success","data":rows})
+    data=request.get_json(silent=True) or {}
+    name=str(data.get('product_name','')).strip()
+    try:
+        category_id=int(data.get('category_id',0)); price=float(data.get('price',0))
+        stock=int(data.get('stock_quantity',0)); discount=float(data.get('discount_percent',0))
+        if not name or category_id<=0 or price<=0 or stock<0 or not 0<=discount<=100:
+            return jsonify({"status":"error","message":"Enter a product name, category, positive price, valid stock and 0–100 discount."}),400
+        cat=execute_query("SELECT category_id FROM Category WHERE category_id=%s",(category_id,),fetch_all=False)
+        if not cat: return jsonify({"status":"error","message":"Category not found."}),400
+        res=execute_dml("""INSERT INTO Product (product_name,seller_id,category_id,price,stock_quantity,product_rating,added_date,discount_percent,is_active)
+                           VALUES (%s,%s,%s,%s,%s,0,CURDATE(),%s,TRUE)""",
+                         (name,sid,category_id,price,stock,discount))
+        return jsonify({"status":"success","product_id":res['last_id'],"message":"Product added."})
+    except (TypeError,ValueError):
+        return jsonify({"status":"error","message":"Invalid product values."}),400
+    except Exception:
+        return jsonify({"status":"error","message":"Could not save product."}),400
+
+@app.route('/api/vendor/products/<int:product_id>', methods=['PUT'])
+@role_required('vendor')
+def vendor_update_product(product_id):
+    sid=current_user()['seller_id']
+    data=request.get_json(silent=True) or {}
+    try:
+        name=str(data.get('product_name','')).strip()
+        price=float(data.get('price',0)); stock=int(data.get('stock_quantity',-1)); discount=float(data.get('discount_percent',0))
+        if not name or price<=0 or stock<0 or not 0<=discount<=100:
+            return jsonify({"status":"error","message":"Enter valid product details."}),400
+        result=execute_dml("""UPDATE Product SET product_name=%s,price=%s,stock_quantity=%s,discount_percent=%s
+                              WHERE product_id=%s AND seller_id=%s""",(name,price,stock,discount,product_id,sid))
+        if not result['affected_rows']:
+            return jsonify({"status":"error","message":"Product not found or not yours."}),404
+        return jsonify({"status":"success","message":"Product updated."})
+    except (TypeError,ValueError):
+        return jsonify({"status":"error","message":"Invalid product values."}),400
+    except Exception:
+        return jsonify({"status":"error","message":"Could not update product."}),400
+
+@app.route('/api/vendor/orders', methods=['GET'])
+@role_required('vendor')
+def vendor_orders():
+    sid=current_user()['seller_id']
+    rows=execute_query("""
+        SELECT oi.order_item_id,oi.order_id,oi.product_id,pr.product_name,oi.quantity,oi.unit_price,
+               oi.item_status,o.order_date,o.order_status,CONCAT(c.first_name,' ',c.last_name) AS customer_name,
+               ca.city,ca.state
+        FROM Order_Item oi JOIN Product pr ON pr.product_id=oi.product_id
+        JOIN Orders o ON o.order_id=oi.order_id JOIN Customer c ON c.customer_id=o.customer_id
+        LEFT JOIN Customer_Address ca ON ca.address_id=o.address_id
+        WHERE pr.seller_id=%s ORDER BY o.order_id DESC,oi.order_item_id DESC
+    """,(sid,))
+    return jsonify({"status":"success","data":rows})
+
+@app.route('/api/vendor/orders/<int:item_id>/status', methods=['PUT'])
+@role_required('vendor')
+def vendor_update_item_status(item_id):
+    sid=current_user()['seller_id']
+    data=request.get_json(silent=True) or {}
+    status=data.get('status')
+    if status not in ('Pending','Shipped','Delivered','Cancelled'):
+        return jsonify({"status":"error","message":"Invalid item status."}),400
+    item=execute_query("""SELECT oi.order_item_id,oi.order_id,oi.item_status
+                          FROM Order_Item oi JOIN Product p ON p.product_id=oi.product_id
+                          WHERE oi.order_item_id=%s AND p.seller_id=%s""",(item_id,sid),fetch_all=False)
+    if not item: return jsonify({"status":"error","message":"Order item not found or not yours."}),404
+    try:
+        execute_dml("UPDATE Order_Item SET item_status=%s WHERE order_item_id=%s",(status,item_id))
+        # Derive the parent order status from all item statuses, preserving mixed-vendor fulfilment.
+        statuses=execute_query("SELECT item_status FROM Order_Item WHERE order_id=%s",(item['order_id'],))
+        vals={r['item_status'] for r in statuses}
+        parent='Delivered' if vals=={'Delivered'} else ('Shipped' if vals.issubset({'Shipped','Delivered'}) and 'Shipped' in vals else ('Cancelled' if vals=={'Cancelled'} else ('Processing' if any(v!='Pending' for v in vals) else 'Pending')))
+        execute_dml("UPDATE Orders SET order_status=%s WHERE order_id=%s",(parent,item['order_id']))
+        return jsonify({"status":"success","message":"Order item status updated."})
+    except Exception:
+        return jsonify({"status":"error","message":"Could not update order item status."}),400
 
 
 if __name__ == '__main__':
