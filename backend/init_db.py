@@ -61,12 +61,25 @@ def split_sql(text):
 
 def run_sql_file(cursor, filepath):
     print(f"Executing: {os.path.basename(filepath)} ...")
+
     with open(filepath, 'r', encoding='utf-8') as f:
         statements = split_sql(f.read())
+
     for stmt in statements:
-        cursor.execute(stmt)
-        if cursor.with_rows:      # SELECT / SHOW inside a script: read and discard
-            cursor.fetchall()
+        try:
+            cursor.execute(stmt)
+        except Exception:
+            print("\nFAILED STATEMENT:\n", stmt[:400])
+            raise
+
+        # Consume all rows and any additional result sets.
+        while True:
+            if cursor.with_rows:
+                cursor.fetchall()
+
+            if not cursor.nextset():
+                break
+
     print(f"   {len(statements)} statements OK")
 
 
