@@ -66,7 +66,11 @@ def run_sql_file(cursor, filepath):
         statements = split_sql(f.read())
 
     for stmt in statements:
-        cursor.execute(stmt)
+        try:
+            cursor.execute(stmt)
+        except Exception:
+            print("\nFAILED STATEMENT:\n", stmt[:400])
+            raise
 
         # Consume all rows and any additional result sets.
         while True:
