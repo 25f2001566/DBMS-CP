@@ -7,15 +7,27 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from flask import Flask, jsonify, request, render_template, redirect, send_from_directory
+from flask.json.provider import DefaultJSONProvider
+import datetime
 from backend.config import Config
 from backend.db import execute_query, execute_dml, call_procedure, get_db_connection
 from backend.auth import auth_bp, role_required, current_user, LOGIN_URL, DASHBOARD_URL
+
+class CustomJSONProvider(DefaultJSONProvider):
+    def default(self, o):
+        if isinstance(o, datetime.datetime):
+            return o.strftime('%Y-%m-%dT%H:%M:%S')
+        if isinstance(o, datetime.date):
+            return o.strftime('%Y-%m-%d')
+        return super().default(o)
 
 app = Flask(
     __name__,
     template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'templates'),
     static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'static')
 )
+app.json_provider_class = CustomJSONProvider
+app.json = CustomJSONProvider(app)
 app.config.from_object(Config)
 app.register_blueprint(auth_bp)
 
@@ -712,7 +724,7 @@ def store_add_cart():
             execute_dml("UPDATE Cart_Item SET quantity=%s WHERE cart_item_id=%s", (new_quantity, existing['cart_item_id']))
         else:
             execute_dml("INSERT INTO Cart_Item (cart_id, product_id, quantity) VALUES (%s,%s,%s)", (cart_id, product_id, quantity))
-        return jsonify({"status":"success","message":"Added to cart."})
+        return jsonify({"status":"success","message":"Added to cart.","product_id":product_id})
     except (TypeError, ValueError):
         return jsonify({"status":"error","message":"Invalid product or quantity."}), 400
     except Exception:

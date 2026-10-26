@@ -106,7 +106,7 @@ CREATE TABLE Customer_Address (
 CREATE TABLE Orders (
     order_id INT PRIMARY KEY AUTO_INCREMENT,
     customer_id INT NOT NULL,
-    order_date DATE NOT NULL,
+    order_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     order_status VARCHAR(30) DEFAULT 'Pending',
     

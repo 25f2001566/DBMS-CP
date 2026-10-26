@@ -87,7 +87,7 @@ proc_body: BEGIN
 
         -- 1. Insert Orders master row
         INSERT INTO Orders (customer_id, order_date, total_amount, order_status)
-        VALUES (p_customer_id, CURDATE(), v_total_cost, 'Processing');
+        VALUES (p_customer_id, NOW(), v_total_cost, 'Processing');
         
         SET p_order_id = LAST_INSERT_ID();
 

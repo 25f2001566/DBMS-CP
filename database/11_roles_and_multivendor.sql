@@ -163,7 +163,7 @@ proc_cart: BEGIN
     START TRANSACTION;
 
     INSERT INTO Orders (customer_id, order_date, total_amount, order_status, address_id)
-    VALUES (p_customer_id, CURDATE(), 0.00, 'Pending', p_address_id);
+    VALUES (p_customer_id, NOW(), 0.00, 'Pending', p_address_id);
     SET p_order_id = LAST_INSERT_ID();
 
     OPEN cur_cart;

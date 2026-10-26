@@ -9,6 +9,54 @@ let categoryChartInstance = null;
 let cachedProducts = [];
 let cachedOrders = [];
 
+// Human-readable date & time formatter handling legacy date-only records and full timestamps
+function formatOrderDate(dateVal) {
+    if (!dateVal) return 'N/A';
+    const str = String(dateVal).trim();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const isLegacyDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) ||
+                             /^\d{4}-\d{2}-\d{2}[T ]00:00:00/.test(str) ||
+                             str.includes('00:00:00 GMT') ||
+                             str.includes(' 00:00:00');
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+        const parts = str.replace('T', ' ').split(' ');
+        const [y, m, d] = parts[0].split('-').map(Number);
+        const timeParts = (parts[1] || '00:00:00').split(':').map(Number);
+        const monthName = months[m - 1] || '';
+
+        if (isLegacyDateOnly) {
+            return `${d} ${monthName} ${y}`;
+        } else {
+            const hours = timeParts[0] || 0;
+            const mins = timeParts[1] || 0;
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const h12 = hours % 12 || 12;
+            const minStr = String(mins).padStart(2, '0');
+            return `${d} ${monthName} ${y}, ${h12}:${minStr} ${ampm}`;
+        }
+    }
+
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+        const d = parsed.getDate();
+        const m = months[parsed.getMonth()];
+        const y = parsed.getFullYear();
+        if (isLegacyDateOnly || (parsed.getHours() === 0 && parsed.getMinutes() === 0)) {
+            return `${d} ${m} ${y}`;
+        }
+        const hours = parsed.getHours();
+        const mins = parsed.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const h12 = hours % 12 || 12;
+        const minStr = String(mins).padStart(2, '0');
+        return `${d} ${m} ${y}, ${h12}:${minStr} ${ampm}`;
+    }
+
+    return str;
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     switchTab('dashboard');
@@ -129,7 +177,10 @@ async function loadDashboard() {
             const tr = document.createElement('tr');
             tr.className = "hover:bg-slate-50/50 transition";
             tr.innerHTML = `
-                <td class="py-3 px-3 font-semibold text-slate-800">#${o.order_id}</td>
+                <td class="py-3 px-3">
+                    <span class="font-semibold text-slate-800">#${o.order_id}</span>
+                    <div class="text-[11px] text-slate-400 mt-0.5"><i class="fa-regular fa-clock text-[10px]"></i> ${formatOrderDate(o.order_date)}</div>
+                </td>
                 <td class="py-3 px-3 font-medium text-slate-700">${escapeHtml(o.customer_name)}</td>
                 <td class="py-3 px-3 font-semibold text-slate-900">₹${Number(o.total_amount).toLocaleString('en-IN')}</td>
                 <td class="py-3 px-3">${getStatusBadge(o.order_status)}</td>
@@ -213,7 +264,10 @@ function renderOrdersTable() {
         const isCancelable = o.order_status !== 'Cancelled' && o.order_status !== 'Delivered';
 
         tr.innerHTML = `
-            <td class="py-3 px-4 font-bold text-slate-800">#${o.order_id}</td>
+            <td class="py-3 px-4">
+                <div class="font-bold text-slate-800">#${o.order_id}</div>
+                <div class="text-[11px] text-slate-400 mt-0.5"><i class="fa-regular fa-clock text-[10px]"></i> ${formatOrderDate(o.order_date)}</div>
+            </td>
             <td class="py-3 px-4">
                 <div class="font-medium text-slate-800">${escapeHtml(o.customer_name)}</div>
                 <div class="text-xs text-slate-400">${escapeHtml(o.customer_city || '')}</div>
@@ -617,7 +671,7 @@ async function loadAuditLogs() {
                     <td class="py-3 px-4 text-xs font-semibold text-slate-500">${l.old_status || '—'}</td>
                     <td class="py-3 px-4 text-xs font-bold text-sky-700">${l.new_status}</td>
                     <td class="py-3 px-4 text-xs font-mono text-emerald-600">${l.action_type}</td>
-                    <td class="py-3 px-4 text-xs text-slate-400 font-mono">${l.changed_at}</td>
+                    <td class="py-3 px-4 text-xs text-slate-500 font-mono">${formatOrderDate(l.changed_at)}</td>
                 `;
                 tbody.appendChild(tr);
             });

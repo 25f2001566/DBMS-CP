@@ -1,21 +1,516 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SmartStore | Vendor Studio</title><script src="https://cdn.tailwindcss.com"></script></head>
-<body class="bg-slate-50 text-slate-800"><header class="bg-white border-b sticky top-0 z-10"><div class="max-w-7xl mx-auto px-5 h-16 flex justify-between items-center"><a href="/vendor" class="font-black text-xl flex items-center gap-2"><span class="w-9 h-9 bg-indigo-600 text-white rounded-xl grid place-items-center">S</span>Vendor Studio</a><div class="flex items-center gap-3"><span class="hidden sm:block text-sm text-slate-500">Welcome, <b class="text-slate-800">{{ user.name }}</b></span><button onclick="logout()" class="border rounded-xl px-3 py-2 text-sm">Log out</button></div></div></header>
-<main class="max-w-7xl mx-auto px-5 py-8"><section class="rounded-3xl p-8 bg-gradient-to-r from-slate-900 to-indigo-900 text-white"><p class="text-xs uppercase tracking-[.2em] text-indigo-200">Vendor workspace</p><h1 class="text-3xl md:text-4xl font-black mt-2">Manage your store.</h1><p class="mt-2 text-slate-300">Your products, inventory and fulfilment — all in one place.</p></section>
-<div id="notice" class="hidden rounded-xl p-3 mt-5 text-sm"></div><section id="stats" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6"></section>
-<div class="grid lg:grid-cols-3 gap-6 mt-7"><section class="lg:col-span-2 bg-white rounded-2xl border p-5"><div class="flex justify-between items-center"><h2 class="text-xl font-black">Your products</h2><button onclick="loadProducts()" class="text-sm text-indigo-600">Refresh</button></div><div class="overflow-x-auto mt-4"><table class="w-full text-sm text-left"><thead class="bg-slate-50 text-slate-500"><tr><th class="p-3">Product</th><th class="p-3">Price</th><th class="p-3">Stock</th><th class="p-3">Edit</th></tr></thead><tbody id="products"></tbody></table></div></section>
-<section class="bg-white rounded-2xl border p-5"><h2 class="text-xl font-black">List a product</h2><div class="space-y-3 mt-4"><input id="p-name" class="border rounded-xl p-3 w-full" placeholder="Product name"><select id="p-category" class="border rounded-xl p-3 w-full"><option value="">Choose category</option></select><div class="grid grid-cols-2 gap-3"><input id="p-price" type="number" min="0.01" step=".01" class="border rounded-xl p-3 w-full" placeholder="Price ₹"><input id="p-stock" type="number" min="0" class="border rounded-xl p-3 w-full" placeholder="Stock"></div><input id="p-discount" type="number" min="0" max="100" class="border rounded-xl p-3 w-full" placeholder="Discount % (optional)"><button onclick="addProduct()" class="w-full bg-indigo-600 text-white rounded-xl p-3 font-bold">Add product</button></div></section></div>
-<section class="bg-white rounded-2xl border p-5 mt-7"><div class="flex justify-between items-center"><h2 class="text-xl font-black">Orders for your products</h2><button onclick="loadOrders()" class="text-sm text-indigo-600">Refresh</button></div><div class="overflow-x-auto mt-4"><table class="w-full text-sm text-left"><thead class="bg-slate-50 text-slate-500"><tr><th class="p-3">Order</th><th class="p-3">Product</th><th class="p-3">Customer</th><th class="p-3">Qty</th><th class="p-3">Amount</th><th class="p-3">Status</th></tr></thead><tbody id="orders"></tbody></table></div></section></main>
-<script>
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const money=n=>Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-async function api(url,opts={}){const r=await fetch(url,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});const j=await r.json();if(!r.ok||j.status==='error')throw Error(j.message||'Request failed');return j}
-function note(s,ok=true){const n=document.getElementById('notice');n.textContent=s;n.className='rounded-xl p-3 mt-5 text-sm '+(ok?'bg-emerald-50 text-emerald-700':'bg-rose-50 text-rose-700')}
-async function loadSummary(){try{const j=await api('/api/vendor/summary'),d=j.data;document.getElementById('stats').innerHTML=[['Products',d.products,'📦'],['Low stock',d.low_stock,'⚠️'],['Pending items',d.pending_items,'🧾'],['Gross sales','₹'+money(d.gross_sales),'↗']].map(x=>`<div class="bg-white border rounded-2xl p-5"><div class="text-2xl">${x[2]}</div><p class="text-sm text-slate-500 mt-3">${x[0]}</p><p class="text-2xl font-black mt-1">${x[1]}</p></div>`).join('')}catch(e){note(e.message,false)}}
-async function loadCategories(){try{const j=await api('/api/vendor/categories');j.data.forEach(c=>document.getElementById('p-category').add(new Option(c.category_name,c.category_id)))}catch(e){note(e.message,false)}}
-async function loadProducts(){try{const j=await api('/api/vendor/products');document.getElementById('products').innerHTML=j.data.map(p=>`<tr class="border-t"><td class="p-3"><b>${esc(p.product_name)}</b><div class="text-xs text-slate-500">${esc(p.category_name)} · ${p.is_active?'Listed':'Unlisted'}</div></td><td class="p-3">₹${money(p.discounted_price)}</td><td class="p-3">${p.stock_quantity}</td><td class="p-3"><button onclick="editProduct(${p.product_id},'${esc(p.product_name).replace(/'/g,'&#39;')}',${p.price},${p.stock_quantity},${p.discount_percent})" class="text-indigo-600 font-semibold">Edit</button></td></tr>`).join('')||'<tr><td colspan="4" class="p-5 text-slate-500">No products listed yet.</td></tr>'}catch(e){note(e.message,false)}}
-async function addProduct(){try{const body={product_name:document.getElementById('p-name').value,category_id:Number(document.getElementById('p-category').value),price:Number(document.getElementById('p-price').value),stock_quantity:Number(document.getElementById('p-stock').value),discount_percent:Number(document.getElementById('p-discount').value||0)};const j=await api('/api/vendor/products',{method:'POST',body:JSON.stringify(body)});note(j.message);['p-name','p-price','p-stock','p-discount'].forEach(id=>document.getElementById(id).value='');loadProducts();loadSummary()}catch(e){note(e.message,false)}}
-async function editProduct(id,name,price,stock,discount){const n=prompt('Product name:',name);if(n===null)return;const p=prompt('Price:',price);if(p===null)return;const q=prompt('Stock quantity:',stock);if(q===null)return;const d=prompt('Discount percent:',discount);if(d===null)return;try{const j=await api('/api/vendor/products/'+id,{method:'PUT',body:JSON.stringify({product_name:n,price:Number(p),stock_quantity:Number(q),discount_percent:Number(d)})});note(j.message);loadProducts();loadSummary()}catch(e){note(e.message,false)}}
-async function loadOrders(){try{const j=await api('/api/vendor/orders');document.getElementById('orders').innerHTML=j.data.map(o=>`<tr class="border-t"><td class="p-3 font-bold">#${o.order_id}</td><td class="p-3">${esc(o.product_name)}</td><td class="p-3">${esc(o.customer_name)}<div class="text-xs text-slate-500">${esc(o.city||'')}</div></td><td class="p-3">${o.quantity}</td><td class="p-3">₹${money(o.unit_price*o.quantity)}</td><td class="p-3"><select onchange="setStatus(${o.order_item_id},this.value)" class="border rounded-lg p-2"><option ${o.item_status==='Pending'?'selected':''}>Pending</option><option ${o.item_status==='Shipped'?'selected':''}>Shipped</option><option ${o.item_status==='Delivered'?'selected':''}>Delivered</option><option ${o.item_status==='Cancelled'?'selected':''}>Cancelled</option></select></td></tr>`).join('')||'<tr><td colspan="6" class="p-5 text-slate-500">No order items for your store yet.</td></tr>'}catch(e){note(e.message,false)}}
-async function setStatus(id,status){try{const j=await api('/api/vendor/orders/'+id+'/status',{method:'PUT',body:JSON.stringify({status})});note(j.message);loadOrders();loadSummary()}catch(e){note(e.message,false);loadOrders()}}
-async function logout(){try{await fetch('/api/auth/logout',{method:'POST'})}finally{location.href='/vendor/login'}}
-loadSummary();loadCategories();loadProducts();loadOrders();
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Studio | SmartStore Marketplace</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Design System CSS -->
+    <link rel="stylesheet" href="/static/css/design-system.css">
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- TOP HEADER -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between gap-4">
+            <!-- Brand -->
+            <div class="flex items-center gap-3">
+                <a href="/vendor" class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-100">
+                        <i class="fa-solid fa-store text-lg"></i>
+                    </div>
+                    <div>
+                        <span class="font-extrabold text-lg tracking-tight text-slate-900 block leading-tight">Vendor Studio</span>
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 block">Seller Workspace</span>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Vendor Status & Profile -->
+            <div class="flex items-center gap-4">
+                <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 text-xs text-emerald-800 font-semibold">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Verified Seller
+                </div>
+                <div class="flex items-center gap-3 pl-3 border-l border-slate-200">
+                    <div class="text-right hidden md:block">
+                        <p class="text-xs font-bold text-slate-900 leading-tight">{{ user.name }}</p>
+                        <p class="text-[11px] text-slate-500">{{ user.email }}</p>
+                    </div>
+                    <button onclick="logout()" class="btn btn-secondary btn-sm" title="Log out">
+                        <i class="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+                        <span class="hidden sm:inline">Log out</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-8">
+
+        <!-- WELCOME BANNER -->
+        <section class="rounded-3xl p-8 bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 text-white relative overflow-hidden shadow-lg">
+            <div class="relative z-10 max-w-2xl">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-3">
+                    Store Management Portal
+                </div>
+                <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-white">
+                    {{ user.name }}
+                </h1>
+                <p class="mt-2 text-slate-300 text-sm sm:text-base leading-relaxed">
+                    Manage your catalog, restock inventory, and update fulfilment statuses for items ordered from your store.
+                </p>
+            </div>
+            <div class="absolute -right-8 -bottom-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        </section>
+
+        <!-- KPI SUMMARY METRICS -->
+        <section id="stats-grid" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs skeleton h-28"></div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs skeleton h-28"></div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs skeleton h-28"></div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs skeleton h-28"></div>
+        </section>
+
+        <!-- TWO-COLUMN SECTION: PRODUCT LIST & ADD PRODUCT -->
+        <div class="grid lg:grid-cols-3 gap-8">
+
+            <!-- Products List (2 cols) -->
+            <section class="lg:col-span-2 bg-white rounded-3xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-widest text-emerald-600 block">Inventory</span>
+                            <h2 class="text-xl font-black text-slate-900">Your Listed Products</h2>
+                        </div>
+                        <button onclick="loadProducts()" class="btn btn-secondary btn-sm">
+                            <i class="fa-solid fa-arrows-rotate text-xs"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto mt-4">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Price</th>
+                                    <th>Stock</th>
+                                    <th class="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="products-table-body">
+                                <tr>
+                                    <td colspan="4" class="text-center py-8 text-slate-400">Loading catalog...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Add Product Form (1 col) -->
+            <section class="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs h-fit">
+                <div class="pb-4 border-b border-slate-100">
+                    <span class="text-xs font-bold uppercase tracking-widest text-emerald-600 block">Catalog</span>
+                    <h2 class="text-xl font-black text-slate-900">List New Product</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Add a new item to the multi-vendor marketplace.</p>
+                </div>
+
+                <form id="add-product-form" onsubmit="event.preventDefault(); addProduct();" class="mt-4 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Product Title</label>
+                        <input id="p-name" class="form-input text-xs" placeholder="e.g. Mechanical Gaming Keyboard" required>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Category</label>
+                        <select id="p-category" class="form-select text-xs" required>
+                            <option value="">Select a category</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Base Price (₹)</label>
+                            <input id="p-price" type="number" step="0.01" min="0.01" class="form-input text-xs font-mono-tag" placeholder="999.00" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Initial Stock</label>
+                            <input id="p-stock" type="number" min="0" class="form-input text-xs font-mono-tag" placeholder="50" required>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Discount Percent (0-100%)</label>
+                        <input id="p-discount" type="number" step="0.01" min="0" max="100" class="form-input text-xs font-mono-tag" placeholder="10.00">
+                    </div>
+
+                    <button type="submit" id="btn-add-product" class="btn btn-primary btn-block btn-lg shadow-sm">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                        <span>List Product</span>
+                    </button>
+                </form>
+            </section>
+        </div>
+
+        <!-- FULFILMENT ORDERS TABLE -->
+        <section class="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-widest text-emerald-600 block">Fulfilment</span>
+                    <h2 class="text-xl font-black text-slate-900">Orders For Your Store</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Track and update individual order item shipping statuses.</p>
+                </div>
+                <button onclick="loadOrders()" class="btn btn-secondary btn-sm self-start sm:self-auto">
+                    <i class="fa-solid fa-arrows-rotate text-xs"></i> Refresh Orders
+                </button>
+            </div>
+
+            <div class="overflow-x-auto mt-4">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Product</th>
+                            <th>Customer & Destination</th>
+                            <th>Qty</th>
+                            <th>Total</th>
+                            <th>Fulfilment Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-table-body">
+                        <tr>
+                            <td colspan="6" class="text-center py-8 text-slate-400">Loading order items...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="mt-16 bg-white border-t border-slate-200 py-6 text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p>SmartStore Vendor Studio &middot; DBMS Multi-Vendor CP</p>
+            <p class="text-slate-400">Scoped Seller Authorization &middot; Role: Vendor</p>
+        </div>
+    </footer>
+
+    <!-- EDIT PRODUCT MODAL (Replaces annoying browser prompt) -->
+    <div id="edit-product-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
+        <div class="modal-card p-6 sm:p-8">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </div>
+                    <div>
+                        <h3 id="edit-modal-title" class="font-extrabold text-lg text-slate-900 leading-tight">Edit Product</h3>
+                        <p class="text-xs text-slate-500">Update listing details and stock</p>
+                    </div>
+                </div>
+                <button onclick="closeEditModal()" class="cart-drawer-close">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <form id="edit-product-form" onsubmit="event.preventDefault(); saveEditedProduct();" class="mt-6 space-y-4">
+                <input type="hidden" id="edit-p-id">
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Product Title</label>
+                    <input id="edit-p-name" class="form-input text-xs" required>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Base Price (₹)</label>
+                        <input id="edit-p-price" type="number" step="0.01" min="0.01" class="form-input text-xs font-mono-tag" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Stock Quantity</label>
+                        <input id="edit-p-stock" type="number" min="0" class="form-input text-xs font-mono-tag" required>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Discount %</label>
+                    <input id="edit-p-discount" type="number" step="0.01" min="0" max="100" class="form-input text-xs font-mono-tag">
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeEditModal()" class="btn btn-secondary btn-sm">Cancel</button>
+                    <button type="submit" id="btn-save-edit" class="btn btn-primary btn-sm">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- VENDOR DASHBOARD LOGIC -->
+    <script>
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const money = n => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        async function api(url, opts = {}) {
+            const r = await fetch(url, {
+                ...opts,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(opts.headers || {})
+                }
+            });
+            const j = await r.json();
+            if (!r.ok || j.status === 'error') throw new Error(j.message || 'Request failed.');
+            return j;
+        }
+
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            const icon = type === 'success' ? 'fa-circle-check text-emerald-300' : (type === 'error' ? 'fa-circle-exclamation text-rose-300' : 'fa-circle-info text-sky-300');
+            toast.innerHTML = `
+                <i class="fa-solid ${icon} text-base flex-shrink-0"></i>
+                <span class="flex-1 font-medium leading-snug">${esc(msg)}</span>
+                <button onclick="this.parentElement.remove()" class="text-white/60 hover:text-white ml-2">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('toast-hiding');
+                setTimeout(() => toast.remove(), 250);
+            }, 3500);
+        }
+
+        // 1. KPI Summaries
+        async function loadSummary() {
+            try {
+                const res = await api('/api/vendor/summary');
+                const d = res.data;
+
+                const metrics = [
+                    { label: 'Active Products', val: d.products, icon: 'fa-box', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                    { label: 'Low Stock Alerts', val: d.low_stock, icon: 'fa-triangle-exclamation', color: d.low_stock > 0 ? 'text-amber-600' : 'text-slate-400', bg: d.low_stock > 0 ? 'bg-amber-50' : 'bg-slate-50' },
+                    { label: 'Pending Shipments', val: d.pending_items, icon: 'fa-dolly', color: 'text-sky-600', bg: 'bg-sky-50' },
+                    { label: 'Gross Revenue', val: '₹' + money(d.gross_sales), icon: 'fa-arrow-trend-up', color: 'text-emerald-600', bg: 'bg-emerald-50' }
+                ];
+
+                document.getElementById('stats-grid').innerHTML = metrics.map(m => `
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500">${m.label}</p>
+                            <p class="text-2xl font-black text-slate-900 mt-1 font-mono-tag">${m.val}</p>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl ${m.bg} ${m.color} flex items-center justify-center text-lg">
+                            <i class="fa-solid ${m.icon}"></i>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // 2. Categories
+        async function loadCategories() {
+            try {
+                const res = await api('/api/vendor/categories');
+                const select = document.getElementById('p-category');
+                select.innerHTML = '<option value="">Select a category</option>';
+                res.data.forEach(c => select.add(new Option(c.category_name, c.category_id)));
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // 3. Products
+        async function loadProducts() {
+            try {
+                const res = await api('/api/vendor/products');
+                const list = res.data || [];
+                const tbody = document.getElementById('products-table-body');
+
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-slate-400">No products listed in your catalog yet.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = list.map(p => {
+                    const isLow = p.stock_quantity <= 10;
+                    return `
+                        <tr>
+                            <td>
+                                <div class="font-bold text-slate-900">${esc(p.product_name)}</div>
+                                <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                    <span>${esc(p.category_name)}</span>
+                                    <span>&middot;</span>
+                                    <span class="badge ${p.is_active ? 'badge-emerald' : 'badge-slate'} text-[10px]">${p.is_active ? 'Listed' : 'Unlisted'}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="font-mono-tag font-bold text-slate-900">₹${money(p.discounted_price)}</div>
+                                ${Number(p.discount_percent) > 0 ? `<div class="text-xs text-slate-400 line-through font-mono-tag">₹${money(p.price)} (-${Math.round(p.discount_percent)}%)</div>` : ''}
+                            </td>
+                            <td>
+                                <span class="badge ${isLow ? 'badge-amber' : 'badge-emerald'} font-mono-tag">
+                                    ${p.stock_quantity} units
+                                </span>
+                            </td>
+                            <td class="text-right">
+                                <button onclick="openEditModal(${p.product_id}, '${esc(p.product_name).replace(/'/g, "\\'")}', ${p.price}, ${p.stock_quantity}, ${p.discount_percent})" 
+                                        class="btn btn-secondary btn-sm text-xs">
+                                    <i class="fa-solid fa-pen text-[10px]"></i> Edit
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // 4. Add Product
+        async function addProduct() {
+            const btn = document.getElementById('btn-add-product');
+            btn.disabled = true;
+            try {
+                const body = {
+                    product_name: document.getElementById('p-name').value.trim(),
+                    category_id: Number(document.getElementById('p-category').value),
+                    price: Number(document.getElementById('p-price').value),
+                    stock_quantity: Number(document.getElementById('p-stock').value),
+                    discount_percent: Number(document.getElementById('p-discount').value || 0)
+                };
+                const res = await api('/api/vendor/products', {
+                    method: 'POST',
+                    body: JSON.stringify(body)
+                });
+                showToast(res.message, 'success');
+                document.getElementById('add-product-form').reset();
+                await loadProducts();
+                await loadSummary();
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // 5. Edit Modal
+        function openEditModal(id, name, price, stock, discount) {
+            document.getElementById('edit-p-id').value = id;
+            document.getElementById('edit-p-name').value = name;
+            document.getElementById('edit-p-price').value = price;
+            document.getElementById('edit-p-stock').value = stock;
+            document.getElementById('edit-p-discount').value = discount;
+            document.getElementById('edit-product-modal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-product-modal').classList.remove('active');
+        }
+
+        async function saveEditedProduct() {
+            const id = document.getElementById('edit-p-id').value;
+            const btn = document.getElementById('btn-save-edit');
+            btn.disabled = true;
+            try {
+                const body = {
+                    product_name: document.getElementById('edit-p-name').value.trim(),
+                    price: Number(document.getElementById('edit-p-price').value),
+                    stock_quantity: Number(document.getElementById('edit-p-stock').value),
+                    discount_percent: Number(document.getElementById('edit-p-discount').value || 0)
+                };
+                const res = await api('/api/vendor/products/' + id, {
+                    method: 'PUT',
+                    body: JSON.stringify(body)
+                });
+                showToast(res.message, 'success');
+                closeEditModal();
+                await loadProducts();
+                await loadSummary();
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // 6. Orders
+        async function loadOrders() {
+            try {
+                const res = await api('/api/vendor/orders');
+                const list = res.data || [];
+                const tbody = document.getElementById('orders-table-body');
+
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-slate-400">No order line items received for your products yet.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = list.map(o => `
+                    <tr>
+                        <td class="font-bold text-slate-900">#${o.order_id}</td>
+                        <td class="font-medium text-slate-800">${esc(o.product_name)}</td>
+                        <td>
+                            <div class="font-medium text-slate-800">${esc(o.customer_name)}</div>
+                            <div class="text-xs text-slate-500">${esc(o.city || 'Unknown')}, ${esc(o.state || '')}</div>
+                        </td>
+                        <td class="font-mono-tag font-bold">${o.quantity}</td>
+                        <td class="font-mono-tag font-bold text-slate-900">₹${money(o.unit_price * o.quantity)}</td>
+                        <td>
+                            <select onchange="updateItemStatus(${o.order_item_id}, this.value)" 
+                                    class="form-select text-xs py-1.5 font-semibold bg-white border-slate-200">
+                                <option value="Pending" ${o.item_status === 'Pending' ? 'selected' : ''}>Pending</option>
+                                <option value="Shipped" ${o.item_status === 'Shipped' ? 'selected' : ''}>Shipped</option>
+                                <option value="Delivered" ${o.item_status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+                                <option value="Cancelled" ${o.item_status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+                            </select>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function updateItemStatus(itemId, newStatus) {
+            try {
+                const res = await api(`/api/vendor/orders/${itemId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status: newStatus })
+                });
+                showToast(res.message, 'success');
+                await loadOrders();
+                await loadSummary();
+            } catch (err) {
+                showToast(err.message, 'error');
+                await loadOrders();
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+            } finally {
+                location.href = '/vendor/login';
+            }
+        }
+
+        // Initialize
+        loadSummary();
+        loadCategories();
+        loadProducts();
+        loadOrders();
+    </script>
+</body>
+</html>
