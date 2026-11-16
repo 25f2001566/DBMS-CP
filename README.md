@@ -98,7 +98,7 @@ erDiagram
     ORDERS {
         int order_id PK
         int customer_id FK
-        date order_date
+        datetime order_date
         decimal total_amount
         string order_status
     }
@@ -138,14 +138,21 @@ smart-multivendor-ecommerce/
 ├── backend/
 │   ├── config.py                   # DB host, port, credentials configuration
 │   ├── db.py                       # MySQL connection pooling & execution helpers
+│   ├── auth.py                     # Role-based auth, session cookies & bcrypt hashing
 │   ├── init_db.py                  # Automated execution runner for all SQL files
-│   └── app.py                      # Flask RESTful API server
+│   ├── seed_users.py               # Generates sample accounts for all 3 roles
+│   ├── verify_system.py            # End-to-end regression & DBMS verification suite
+│   └── app.py                      # Flask RESTful API server & custom JSON provider
 │
 ├── frontend/
 │   ├── templates/
-│   │   └── index.html              # Modern, light-themed admin dashboard
+│   │   ├── index.html              # Modern Administrator control center
+│   │   ├── customer_storefront.html# Customer marketplace & animated cart drawer
+│   │   ├── vendor_dashboard.html   # Vendor Studio catalog & fulfilment workspace
+│   │   └── login.html              # Multi-role authentication & registration portal
 │   └── static/
-│       ├── css/                    # Custom CSS styling
+│       ├── css/
+│       │   └── design-system.css   # Unified typography, elevations, cart drawer & tokens
 │       └── js/
 │           └── app.js              # Real-time UI data synchronization & API controller
 │

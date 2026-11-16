@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Multi-Vendor E-Commerce DBMS</title>
+    <title>SmartStore | Operations & Admin Console</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -51,8 +51,8 @@
                 <i class="fa-solid fa-store text-lg"></i>
             </div>
             <div>
-                <h1 class="font-bold text-sm text-slate-900 leading-tight">SmartStore CP</h1>
-                <p class="text-xs text-slate-500 font-medium">MySQL Order System</p>
+                <h1 class="font-bold text-sm text-slate-900 leading-tight">SmartStore Admin</h1>
+                <p class="text-xs text-slate-500 font-medium">Enterprise Marketplace</p>
             </div>
         </div>
 
@@ -77,20 +77,19 @@
                 <i class="fa-solid fa-boxes-stacked w-5 text-center"></i> Inventory Monitor
             </button>
             <button onclick="switchTab('analytics')" id="nav-analytics" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                <i class="fa-solid fa-chart-line w-5 text-center"></i> Analytics & Cursors
+                <i class="fa-solid fa-chart-line w-5 text-center"></i> Vendor Payouts & Analytics
             </button>
             <button onclick="switchTab('audit')" id="nav-audit" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                <i class="fa-solid fa-clock-rotate-left w-5 text-center"></i> Trigger Audit Logs
+                <i class="fa-solid fa-clock-rotate-left w-5 text-center"></i> Order Audit Logs
             </button>
         </nav>
 
         <!-- Footer Info -->
         <div class="p-4 border-t border-slate-100 bg-slate-50">
             <div class="text-xs text-slate-500">
-                <!-- <span class="font-semibold text-slate-700">Devraj Bhagvat</span> (Roll 06) -->
-                <p>AI 2303 DBMS Lab Project</p>
+                <p class="font-semibold text-slate-700">SmartStore Operations</p>
                 <div class="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-600">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> MySQL 8.0 Connected
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> System Connected
                 </div>
             </div>
         </div>
@@ -106,7 +105,7 @@
             </div>
             <div class="flex items-center gap-3">
                 <button onclick="openPlaceOrderModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium shadow-sm shadow-sky-200 flex items-center gap-2 transition">
-                    <i class="fa-solid fa-cart-plus"></i> New Order (Procedure)
+                    <i class="fa-solid fa-cart-plus"></i> New Order
                 </button>
                 <button onclick="refreshCurrentTab()" class="p-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-white transition" title="Refresh Data">
                     <i class="fa-solid fa-rotate"></i>
@@ -224,7 +223,7 @@
                         </select>
                     </div>
                     <button onclick="openPlaceOrderModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">
-                        + Place Order via Stored Procedure
+                        + Create New Order
                     </button>
                 </div>
 
@@ -360,7 +359,7 @@
                 <div class="flex items-center justify-between mb-6">
                     <div>
                         <h3 class="font-bold text-slate-900 text-lg">Inventory & Stock Tracking</h3>
-                        <p class="text-xs text-slate-500">Integrated with database triggers preventing negative inventory</p>
+                        <p class="text-xs text-slate-500">Real-time warehouse tracking with automated stock level safeguards</p>
                     </div>
                 </div>
 
@@ -386,27 +385,27 @@
             </div>
         </section>
 
-        <!-- 7. ANALYTICS & CURSORS TAB -->
+        <!-- 7. ANALYTICS & PAYOUTS TAB -->
         <section id="tab-analytics" class="hidden space-y-6">
-            <!-- Cursors Execution Action Box -->
+            <!-- Payouts Execution Action Box -->
             <div class="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 p-6 rounded-xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
                 <div>
                     <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
-                        <i class="fa-solid fa-gears text-sky-600"></i> MySQL Cursor Batch Execution
+                        <i class="fa-solid fa-calculator text-sky-600"></i> Vendor Payout Reconciliation
                     </h3>
                     <p class="text-xs text-slate-600 mt-1">
-                        Executes <code class="bg-white px-2 py-0.5 rounded text-sky-700 font-mono text-[11px]">calculate_vendor_payouts_cursor()</code>: iterates over each vendor row by row, aggregates delivered order sales, computes commission, and writes to <code class="bg-white px-2 py-0.5 rounded text-sky-700 font-mono text-[11px]">Vendor_Payout</code> table.
+                        Reconciles delivered order sales, computes net vendor disbursements after platform commission, and updates the payout ledger.
                     </p>
                 </div>
                 <button onclick="runCursorBatchPayouts()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold shadow-sm shadow-sky-200 flex items-center gap-2 whitespace-nowrap">
-                    <i class="fa-solid fa-play"></i> Run Cursor Batch Job
+                    <i class="fa-solid fa-play"></i> Run Payout Reconciliation
                 </button>
             </div>
 
-            <!-- Cursor Output Results -->
+            <!-- Payout Output Results -->
             <div id="cursor-output-container" class="hidden bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <h4 class="font-bold text-slate-900 text-sm mb-3 text-emerald-600 flex items-center gap-2">
-                    <i class="fa-solid fa-check-circle"></i> Cursor Execution Output: Vendor Payout Ledger
+                    <i class="fa-solid fa-check-circle"></i> Vendor Payout Settlement Ledger
                 </h4>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm text-slate-600">
@@ -430,7 +429,7 @@
                 <!-- Top Selling Products -->
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <h3 class="font-bold text-slate-900 text-sm mb-4 flex items-center gap-2">
-                        <i class="fa-solid fa-fire text-amber-500"></i> Top-Selling Products (DQL & Grouping)
+                        <i class="fa-solid fa-fire text-amber-500"></i> Top-Selling Products
                     </h3>
                     <table class="w-full text-left text-sm text-slate-600">
                         <thead class="text-xs uppercase bg-slate-50 text-slate-400">
@@ -448,7 +447,7 @@
                 <!-- Top Spending Customers -->
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <h3 class="font-bold text-slate-900 text-sm mb-4 flex items-center gap-2">
-                        <i class="fa-solid fa-crown text-indigo-500"></i> High-Value Customers (HAVING / Aggregation)
+                        <i class="fa-solid fa-crown text-indigo-500"></i> High-Value Customers
                     </h3>
                     <table class="w-full text-left text-sm text-slate-600">
                         <thead class="text-xs uppercase bg-slate-50 text-slate-400">
@@ -470,10 +469,10 @@
             <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <div class="mb-6">
                     <h3 class="font-bold text-slate-900 text-lg flex items-center gap-2">
-                        <i class="fa-solid fa-shield-halved text-sky-600"></i> Database Automation Audit Trail
+                        <i class="fa-solid fa-shield-halved text-sky-600"></i> Order Lifecycle Audit Trail
                     </h3>
                     <p class="text-xs text-slate-500 mt-1">
-                        These entries are generated automatically by the MySQL Trigger <code class="bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-mono text-[11px]">trg_orders_after_update_audit</code> whenever an order's status is changed.
+                        System event log tracking all order status transitions, updates, and fulfillment changes in real time.
                     </p>
                 </div>
 
@@ -485,7 +484,7 @@
                                 <th class="py-3 px-4">Order ID</th>
                                 <th class="py-3 px-4">Previous Status</th>
                                 <th class="py-3 px-4">New Status</th>
-                                <th class="py-3 px-4">Trigger Action</th>
+                                <th class="py-3 px-4">Action Type</th>
                                 <th class="py-3 px-4">Timestamp</th>
                             </tr>
                         </thead>
@@ -499,11 +498,11 @@
 
     </main>
 
-    <!-- MODAL: PLACE ORDER VIA STORED PROCEDURE -->
+    <!-- MODAL: CREATE NEW ORDER -->
     <div id="modal-place-order" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
             <div class="flex items-center justify-between pb-4 border-b border-slate-100">
-                <h3 class="font-bold text-slate-900 text-lg">Checkout via Stored Procedure</h3>
+                <h3 class="font-bold text-slate-900 text-lg">Create New Order</h3>
                 <button onclick="closeModal('modal-place-order')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <form onsubmit="submitPlaceOrder(event)" class="mt-4 space-y-4">
@@ -531,9 +530,6 @@
                         </select>
                     </div>
                 </div>
-                <!-- <div class="p-3 bg-sky-50 rounded-lg text-xs text-sky-800">
-                    <i class="fa-solid fa-circle-info"></i> This executes <code class="font-mono font-bold">CALL place_order_procedure()</code> with transaction isolation, inventory verification, and automated trigger stock reduction.
-                </div> -->
                 <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
                     <button type="button" onclick="closeModal('modal-place-order')" class="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">Confirm Order</button>

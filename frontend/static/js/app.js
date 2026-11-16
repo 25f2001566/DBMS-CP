@@ -102,14 +102,14 @@ function switchTab(tabId) {
 
 function updateHeader(tabId) {
     const titles = {
-        dashboard: { title: "Dashboard Overview", desc: "Real-time e-commerce operational metrics and database status" },
-        orders: { title: "Orders & Transaction Management", desc: "Multi-vendor orders executed with ACID transactions and stored procedures" },
+        dashboard: { title: "Dashboard Overview", desc: "Real-time e-commerce operational metrics and platform status" },
+        orders: { title: "Orders & Transaction Management", desc: "Multi-vendor order fulfillment, payment settlement, and tracking" },
         products: { title: "Product Catalog Management", desc: "Independent multi-vendor product listings, categories, and pricing" },
         vendors: { title: "Multi-Vendor Marketplace", desc: "Registered sellers, platform commission rates, and sales performance" },
         customers: { title: "Customer Directory", desc: "Registered shoppers, contact profiles, and lifetime spending" },
-        inventory: { title: "Inventory & Stock Levels", desc: "Warehouse tracking protected by MySQL BEFORE/AFTER triggers" },
-        analytics: { title: "Business Analytics & Cursors", desc: "Aggregated reports and MySQL cursor batch reconciliation" },
-        audit: { title: "Database Trigger Audit Trail", desc: "Live event logging automatically populated by MySQL AFTER UPDATE triggers" }
+        inventory: { title: "Inventory & Stock Levels", desc: "Warehouse stock management with automated inventory safeguards" },
+        analytics: { title: "Vendor Payouts & Analytics", desc: "Sales reconciliation, commission settlements, and business metrics" },
+        audit: { title: "Order Audit Trail", desc: "System audit logs recording order state transitions and modifications" }
     };
 
     const header = titles[tabId] || titles.dashboard;
@@ -291,7 +291,7 @@ function renderOrdersTable() {
             </td>
             <td class="py-3 px-4 text-right">
                 ${isCancelable ? `
-                    <button onclick="cancelOrderProcedure(${o.order_id})" class="px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition font-medium" title="Invokes cancel_order_procedure()">
+                    <button onclick="cancelOrderProcedure(${o.order_id})" class="px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition font-medium" title="Cancel this order">
                         <i class="fa-solid fa-ban"></i> Cancel
                     </button>
                 ` : `<span class="text-xs text-slate-400 font-medium">—</span>`}
@@ -310,7 +310,7 @@ async function changeOrderStatus(orderId, newStatus) {
         });
         const json = await res.json();
         if (json.status === 'success') {
-            showAlert(`Order #${orderId} updated to ${newStatus}. (Audit Trigger Fired)`, 'success');
+            showAlert(`Order #${orderId} status updated to ${newStatus}.`, 'success');
             loadOrders();
         } else {
             showAlert(json.message, 'error');
@@ -648,7 +648,7 @@ async function runCursorBatchPayouts() {
             showAlert(json.message, 'error');
         }
     } catch (err) {
-        showAlert('Cursor batch execution failed', 'error');
+        showAlert('Payout reconciliation failed', 'error');
     }
 }
 
