@@ -599,7 +599,7 @@ def run_cursor_payouts():
         results = call_procedure('calculate_vendor_payouts_cursor')
         return jsonify({
             "status": "success",
-            "message": "Vendor payouts calculated and ledger updated using MySQL Cursor.",
+            "message": "Vendor payouts calculated and ledger updated successfully.",
             "data": results
         })
     except Exception as e:
